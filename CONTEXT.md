@@ -1,0 +1,53 @@
+# Domain Glossary
+
+Canonical vocabulary for Architecture Canvas. Use these terms exactly — in code, issues, commits, tests, and docs. Where a term has common synonyms that this project deliberately avoids, they're listed so the drift doesn't creep back.
+
+## Service
+
+A definition in the challenge's catalog, shown in the Services panel and available to drag onto the Canvas — for example "EC2 (Backend)", "Public Subnet", "RDS". A Service is a *type*, not a thing on the canvas.
+
+A Service's type carries its role: "EC2 (Frontend)" and "EC2 (Backend)" are two distinct Services, not one Service with a configurable role.
+
+*Avoid:* "block", "component", "resource".
+
+## Node
+
+An instance of a Service placed on the Canvas. A Node has its own identity, a parent, and children. Several Nodes may share the same Service type.
+
+*Avoid:* "block", "element", "item".
+
+## Canvas Tree
+
+The nested hierarchy of Nodes. This is the evaluator's input, and the thing persisted between sessions. Relationships in the Canvas Tree are strictly parent-child; there are no edges or connections.
+
+*Avoid:* "diagram", "graph", "architecture" (when meaning the data structure).
+
+## Challenge
+
+A single exercise: title, description, Visible Requirements, Hidden Requirements, its Service catalog, and its Rules. The MVP ships one Challenge.
+
+## Visible Requirement
+
+A requirement shown to the user immediately, before any interaction.
+
+## Hidden Requirement
+
+A requirement withheld until the user asks for it, simulating a client who has to be interviewed. Hidden Requirements are grouped into **Hidden Requirement Categories** — the four reveal groups (Infrastructure, Presentation Tier, Application Tier, Data Tier). The user reveals a whole Category at a time, never an individual Hidden Requirement.
+
+## Rule
+
+One checkable condition in a Challenge, evaluated against the Canvas Tree — for example "EC2 (Backend) must be inside a Private Subnet". A Rule either passes or fails; there is no partial result.
+
+*Avoid:* "evaluation rule", "rules array", "check", "checklist item", "validation rule". It is a Rule.
+
+## Evaluation
+
+The result of running every Rule in a Challenge against the Canvas Tree. An Evaluation reports each Rule's pass/fail state and carries a Recommendation for each failed Rule. Produced by submitting; the user may submit any number of times.
+
+## Recommendation
+
+The guidance attached to a failed Rule, telling the user what to change and why.
+
+## Score
+
+The number derived from an Evaluation: the count of passed Rules over the total, expressed out of 100.

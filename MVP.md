@@ -69,7 +69,7 @@ The application should be accessible to users through the Internet.
 
 ##### Data Tier (Database)
 - The database must not be directly accessible from the Internet.
-- The application requires the cheepest SQL database.
+- The application requires the cheapest SQL database.
 - The database should be placed in a private subnet.
 
 #### Available Services
@@ -115,6 +115,9 @@ VPC
 
 #### Validation
 - Validation function takes current Canvas JSON tree structure and compares it against hardcoded Challenge #1 rules array.
+- Validation runs entirely client-side; there is no backend service.
+- A rule requiring a service to be "inside" a container is satisfied only when that container is the service's *direct* parent.
+- Rules are existential: a rule passes if at least one node satisfies it, and duplicate nodes neither help nor hurt.
 
 #### Evaluation Rules
 1. VPC must exist.
@@ -125,7 +128,7 @@ VPC
 6. EC2 (Frontend) must be present.
 7. EC2 (Frontend) must be inside a Public Subnet.
 8. RDS must be present.
-9. Backend EC2 must be present.
+9. EC2 (Backend) must be present.
 10. EC2 (Backend) must be inside a Private Subnet.
 11. RDS must be inside a Private Subnet.
 
@@ -138,6 +141,8 @@ VPC
 - separate field with points earned
 - added after submitting a Challenge
 - 1 correct Rule score points = 100 / all Rules
+- Points are summed at full precision and rounded only for display (e.g. 10 of 11 Rules → 91).
+- The passed-Rule count is shown alongside the score (e.g. "91 — 10 of 11 requirements met").
 
 ## Evaluation
 - separate field with evaluating solutions

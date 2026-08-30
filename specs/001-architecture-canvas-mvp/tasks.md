@@ -242,13 +242,31 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T054 [P] Verify domain purity — assert no file under `src/domain/` or `src/challenges/` imports React, dnd-kit, or browser storage APIs, protecting [ADR 0001](../../docs/adr/0001-client-side-validation-engine.md)'s migration path
-- [ ] T055 [P] Verify keyboard operability of drag and drop via dnd-kit's keyboard sensor across `src/components/canvas/` and `src/components/services/`
-- [ ] T056 [P] Replace the tech-stack placeholders in `README.md` with real setup and run instructions matching the delivered project
-- [ ] T057 Confirm every `CONTEXT.md` canonical term is used consistently across `src/` — Service, Node, Canvas Tree, Rule, Evaluation, Recommendation, Score — with no "block", "element", or "validation rule" drift
-- [ ] T058 Run the full manual edge-case table from [quickstart.md](./quickstart.md), including duplicate Nodes, over-nesting, absurd placement, and the cycle rejection
-- [ ] T059 Verify `docker compose up --build -d` serves the working application at `localhost:3000`, satisfying `MVP.md`'s deployment acceptance criterion
-- [ ] T060 Confirm every `MVP.md` acceptance-criteria checkbox is satisfied and tick them in place
+- [x] T054 [P] Verify domain purity — assert no file under `src/domain/` or `src/challenges/` imports React, dnd-kit, or browser storage APIs, protecting [ADR 0001](../../docs/adr/0001-client-side-validation-engine.md)'s migration path
+- [x] T055 [P] Verify keyboard operability of drag and drop via dnd-kit's keyboard sensor across `src/components/canvas/` and `src/components/services/`
+- [x] T056 [P] Replace the tech-stack placeholders in `README.md` with real setup and run instructions matching the delivered project
+- [x] T057 Confirm every `CONTEXT.md` canonical term is used consistently across `src/` — Service, Node, Canvas Tree, Rule, Evaluation, Recommendation, Score — with no "block", "element", or "validation rule" drift
+- [x] T058 Run the full manual edge-case table from [quickstart.md](./quickstart.md), including duplicate Nodes, over-nesting, absurd placement, and the cycle rejection
+- [x] T059 Verify `docker compose up --build -d` serves the working application at `localhost:3000`, satisfying `MVP.md`'s deployment acceptance criterion
+- [x] T060 Confirm every `MVP.md` acceptance-criteria checkbox is satisfied and tick them in place
+
+---
+
+> **Phase 7 status — VERIFIED. All 60 tasks complete.**
+>
+> - ✅ `npx vitest run` — **197 tests passing** across 15 files
+> - ✅ `npm run lint` and `npm run build` clean
+> - ✅ `docker compose up --build -d` — healthy; all four user stories present in the served bundle
+> - ✅ All 15 `MVP.md` acceptance criteria ticked, with evidence recorded there
+>
+> **Three verification tasks became permanent tests rather than one-off checks**, because each guards a property that would otherwise rot silently:
+> - `tests/architecture/domain-purity.test.ts` (T054) — ESLint already forbids framework imports in the domain, but lint is skippable and disablable inline. This asserts the same property from the suite, including that `evaluate`'s signature stays transport-agnostic, which is what ADR 0001's migration path actually depends on.
+> - `tests/architecture/terminology.test.ts` (T057) — `CONTEXT.md`'s avoid-lists as assertions. It exists because the doc audit found real drift ("Backend EC2" vs "EC2 (Backend)") of exactly the kind that yields a wrong Score.
+> - `tests/architecture/keyboard-access.test.ts` (T055) — a `KeyboardSensor` is useless if the handles never receive focus. Confirms dnd-kit's attributes make the `<span>` handle focusable and button-roled.
+>
+> **T058's manual edge-case table is now executable** as `tests/integration/edge-cases.test.tsx` (11 cases). Several of those cases are correct *because nothing happens* — absurd placements accepted, duplicates inert, the cycle guard rejecting silently — which is precisely what a later "improvement" removes without noticing.
+>
+> **One acceptance criterion rests on manual verification.** "Services can be dragged onto the Canvas" has no automated end-to-end coverage: jsdom cannot produce the layout measurements dnd-kit needs, so a simulated drag would test a mock. The drop-to-action translation, tree operations, sensor registration, and handle focusability are all covered; the pointer gesture itself needs one manual pass in a browser.
 
 ---
 

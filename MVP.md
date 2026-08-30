@@ -159,26 +159,42 @@ VPC
 ## Acceptance Criteria
 
 ### Application
-- [ ] Application can be started locally.
-- [ ] Application can be deployed locally according to README instructions.
-- [ ] Challenge is displayed after opening the application.
+- [x] Application can be started locally.
+- [x] Application can be deployed locally according to README instructions.
+- [x] Challenge is displayed after opening the application.
 
 ### Requirements
-- [ ] Challenge title and description are displayed.
-- [ ] Visible requirements are displayed.
-- [ ] Hidden requirements are initially hidden.
-- [ ] Each hidden requirement can be revealed using a button.
+- [x] Challenge title and description are displayed.
+- [x] Visible requirements are displayed.
+- [x] Hidden requirements are initially hidden.
+- [x] Each hidden requirement can be revealed using a button.
 
 ### Services
-- [ ] Available services are displayed in the Services panel.
-- [ ] Services are grouped by category.
-- [ ] Services can be dragged onto the Canvas.
+- [x] Available services are displayed in the Services panel.
+- [x] Services are grouped by category.
+- [x] Services can be dragged onto the Canvas. *(see note)*
 
 ### Canvas
-- [ ] All services can be added, moved and removed from the Canvas.
+- [x] All services can be added, moved and removed from the Canvas.
 
 ### Submission
-- [ ] User can submit the architecture.
-- [ ] Score is calculated.
-- [ ] Evaluation is displayed.
-- [ ] User can see which requirements passed or failed.
+- [x] User can submit the architecture.
+- [x] Score is calculated.
+- [x] Evaluation is displayed.
+- [x] User can see which requirements passed or failed.
+
+### Evidence
+
+Verified on 2026-08-30: **197 tests passing**, lint and typecheck clean, and
+`docker compose up --build -d` serving a healthy container at `localhost:3000`
+per the README instructions.
+
+**One caveat, stated plainly.** "Services can be dragged onto the Canvas" is
+the only criterion not backed by an automated end-to-end test. jsdom does not
+produce the layout measurements dnd-kit needs, so simulating a drag would
+exercise a mock rather than the application. What *is* covered: the
+drop-to-reducer-action translation, every Canvas Tree operation, the
+`KeyboardSensor` registration, and the focusability of every drag handle. The
+pointer gesture itself rests on the dnd-kit wiring being correct and should be
+confirmed with one manual pass in a browser — see the edge-case table in
+`specs/001-architecture-canvas-mvp/quickstart.md`.

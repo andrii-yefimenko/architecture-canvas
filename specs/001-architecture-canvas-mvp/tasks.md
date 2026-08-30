@@ -65,19 +65,33 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T010 Define all domain types — `ServiceId`, `NodeId`, `CategoryId`, `RuleId`, `Service`, `Node`, `CanvasTree`, `Challenge`, `HiddenRequirementCategory`, `Rule`, `RuleResult`, `Evaluation` — in `src/domain/types.ts` per [data-model.md](./data-model.md). `Rule` MUST be a discriminated union on `kind`.
-- [ ] T011 Write failing unit tests for Canvas Tree operations in `src/domain/canvas-tree.test.ts` — covering add at root and nested, move with subtree, cascade remove, `findNode`, `getParentId`, `getDepth`, `hasChildren`, and the cycle guard rejecting a move into own subtree
-- [ ] T012 Implement pure Canvas Tree operations in `src/domain/canvas-tree.ts` — `addNode`, `moveNode`, `removeNode`, `findNode`, `getParentId`, `isDescendant`, `hasChildren`, `getDepth`. All return new trees and never mutate input. `moveNode` MUST reject self-nesting per [research.md](./research.md) R-02.
-- [ ] T013 [P] Author the Challenge #1 typed module in `src/challenges/challenge-01.ts` — title, description, visible requirements, four Hidden Requirement Categories, the full Service catalog including distractors, and all 11 Rules with descriptions and Recommendations, transcribed from `MVP.md` per [contracts/challenge.md](./contracts/challenge.md)
-- [ ] T014 [P] Write Challenge referential-integrity tests in `src/challenges/challenge-01.test.ts` — unique Service/Rule/Category ids, every Rule `serviceId` and `parentServiceId` resolving to the catalog, non-empty descriptions and Recommendations, non-empty Categories, exactly 11 Rules and 4 Categories
-- [ ] T015 Define `SessionState` and the action union — `ADD_NODE`, `MOVE_NODE`, `REQUEST_DELETE`, `CANCEL_DELETE`, `CONFIRM_DELETE`, `REVEAL_CATEGORY`, `SUBMIT`, `RESTORE` — in `src/state/session-reducer.ts` per [data-model.md](./data-model.md)
-- [ ] T016 Write failing unit tests for the session reducer in `src/state/session-reducer.test.ts` covering every action's effect on `canvasTree`, `revealedCategories`, and `pendingDeletion`
-- [ ] T017 Implement the pure session reducer in `src/state/session-reducer.ts`, delegating all tree mutation to `src/domain/canvas-tree.ts`
-- [ ] T018 Implement `SessionProvider` with `useReducer` plus Context, and a `useSession` hook, in `src/state/SessionProvider.tsx`
-- [ ] T019 Build the three-panel application shell — Requirements, Canvas, Services beneath a header, Canvas widest — in `src/App.tsx` using Tailwind, satisfying FR-035
-- [ ] T020 [P] Build the header containing the submit control, always enabled, in `src/components/Header.tsx` satisfying FR-019 and FR-036
+- [x] T010 Define all domain types — `ServiceId`, `NodeId`, `CategoryId`, `RuleId`, `Service`, `Node`, `CanvasTree`, `Challenge`, `HiddenRequirementCategory`, `Rule`, `RuleResult`, `Evaluation` — in `src/domain/types.ts` per [data-model.md](./data-model.md). `Rule` MUST be a discriminated union on `kind`.
+- [x] T011 Write failing unit tests for Canvas Tree operations in `src/domain/canvas-tree.test.ts` — covering add at root and nested, move with subtree, cascade remove, `findNode`, `getParentId`, `getDepth`, `hasChildren`, and the cycle guard rejecting a move into own subtree
+- [x] T012 Implement pure Canvas Tree operations in `src/domain/canvas-tree.ts` — `addNode`, `moveNode`, `removeNode`, `findNode`, `getParentId`, `isDescendant`, `hasChildren`, `getDepth`. All return new trees and never mutate input. `moveNode` MUST reject self-nesting per [research.md](./research.md) R-02.
+- [x] T013 [P] Author the Challenge #1 typed module in `src/challenges/challenge-01.ts` — title, description, visible requirements, four Hidden Requirement Categories, the full Service catalog including distractors, and all 11 Rules with descriptions and Recommendations, transcribed from `MVP.md` per [contracts/challenge.md](./contracts/challenge.md)
+- [x] T014 [P] Write Challenge referential-integrity tests in `src/challenges/challenge-01.test.ts` — unique Service/Rule/Category ids, every Rule `serviceId` and `parentServiceId` resolving to the catalog, non-empty descriptions and Recommendations, non-empty Categories, exactly 11 Rules and 4 Categories
+- [x] T015 Define `SessionState` and the action union — `ADD_NODE`, `MOVE_NODE`, `REQUEST_DELETE`, `CANCEL_DELETE`, `CONFIRM_DELETE`, `REVEAL_CATEGORY`, `SUBMIT`, `RESTORE` — in `src/state/session-reducer.ts` per [data-model.md](./data-model.md)
+- [x] T016 Write failing unit tests for the session reducer in `src/state/session-reducer.test.ts` covering every action's effect on `canvasTree`, `revealedCategories`, and `pendingDeletion`
+- [x] T017 Implement the pure session reducer in `src/state/session-reducer.ts`, delegating all tree mutation to `src/domain/canvas-tree.ts`
+- [x] T018 Implement `SessionProvider` with `useReducer` plus Context, and a `useSession` hook, in `src/state/SessionProvider.tsx`
+- [x] T019 Build the three-panel application shell — Requirements, Canvas, Services beneath a header, Canvas widest — in `src/App.tsx` using Tailwind, satisfying FR-035
+- [x] T020 [P] Build the header containing the submit control, always enabled, in `src/components/Header.tsx` satisfying FR-019 and FR-036
 
 **Checkpoint**: Domain logic and Challenge data are tested and green; the shell renders three empty panels
+
+> **Checkpoint status — VERIFIED.**
+>
+> - ✅ `npx vitest run` — **81 tests passing** across 4 files (31 Canvas Tree, 26 Challenge integrity, 22 reducer, 2 shell)
+> - ✅ `npm run lint` — zero errors, zero warnings
+> - ✅ `npm run build` — typecheck clean; 150.25 kB JS, 6.62 kB CSS
+> - ✅ Domain purity — no `react`/`@dnd-kit` imports under `src/domain/` or `src/challenges/`; ESLint probe confirmed catching both restricted-import and restricted-global violations
+> - ✅ `npm run preview` — shell and Challenge #1 content both present in the served bundle
+>
+> **Cycle guard (research R-02) is implemented and covered** by three tests: rejecting a move into a descendant, into a direct child, and into itself. `moveNode` returns the input tree by reference on rejection, which the reducer relies on to avoid marking an Evaluation stale for a move that never happened.
+>
+> **Two deviations from the plan's file layout**, both driven by lint:
+> - `src/state/session-context.ts` was added, holding `SessionContext` and `useSession`. The plan put these in `SessionProvider.tsx`, but mixing a hook with a component export breaks React Fast Refresh (`react-refresh/only-export-components`).
+> - `src/domain/score.ts` is **not** yet written. The plan lists it under this phase's directory tree, but `tasks.md` correctly assigns it to T024 in Phase 3, where its tests (T022) live. Phase 2 is complete without it.
 
 ---
 

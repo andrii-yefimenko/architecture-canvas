@@ -16,3 +16,19 @@ if (typeof globalThis.crypto?.randomUUID !== 'function') {
     configurable: true,
   });
 }
+
+/**
+ * Clear persisted session state between tests.
+ *
+ * Once SessionProvider restores from localStorage on init, any test that
+ * renders <App /> without an explicit initialState inherits whatever the
+ * previous test saved. Clearing here keeps every test independent, rather than
+ * making each file remember to do it.
+ */
+beforeEach(() => {
+  try {
+    localStorage.clear();
+  } catch {
+    // Storage may be unavailable in some environments; nothing to clear.
+  }
+});

@@ -213,17 +213,30 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T048 [P] [US4] Write the 9 persistence tests in `src/state/persistence.test.ts` exactly as enumerated in [contracts/persistence.md](./contracts/persistence.md) — round trip, missing key, malformed JSON, version mismatch, unknown `serviceId`, unknown Category id, storage throwing on read, storage throwing on write, and the saved envelope containing no Evaluation
-- [ ] T049 [P] [US4] Write the integration test for session resumption in `tests/integration/session-resume.test.tsx` covering spec Acceptance Scenarios 1–3
+- [x] T048 [P] [US4] Write the 9 persistence tests in `src/state/persistence.test.ts` exactly as enumerated in [contracts/persistence.md](./contracts/persistence.md) — round trip, missing key, malformed JSON, version mismatch, unknown `serviceId`, unknown Category id, storage throwing on read, storage throwing on write, and the saved envelope containing no Evaluation
+- [x] T049 [P] [US4] Write the integration test for session resumption in `tests/integration/session-resume.test.tsx` covering spec Acceptance Scenarios 1–3
 
 ### Implementation for User Story 4
 
-- [ ] T050 [US4] Implement `loadSession` and `saveSession` against the single versioned key `architecture-canvas:session` in `src/state/persistence.ts`, with every storage access wrapped so unavailability degrades persistence only (FR-032, SC-009)
-- [ ] T051 [US4] Implement envelope validation in `src/state/persistence.ts` — version match, structural validity, and every `serviceId` and Category id resolving against the current Challenge; discard the whole envelope on any failure (FR-033)
-- [ ] T052 [US4] Dispatch `RESTORE` from a validated envelope on `SessionProvider` initialisation, leaving `evaluation` null, in `src/state/SessionProvider.tsx` satisfying FR-034
-- [ ] T053 [US4] Persist after every action changing `canvasTree` or `revealedCategories` in `src/state/SessionProvider.tsx`, excluding the Evaluation from the envelope (FR-032, FR-034)
+- [x] T050 [US4] Implement `loadSession` and `saveSession` against the single versioned key `architecture-canvas:session` in `src/state/persistence.ts`, with every storage access wrapped so unavailability degrades persistence only (FR-032, SC-009)
+- [x] T051 [US4] Implement envelope validation in `src/state/persistence.ts` — version match, structural validity, and every `serviceId` and Category id resolving against the current Challenge; discard the whole envelope on any failure (FR-033)
+- [x] T052 [US4] Dispatch `RESTORE` from a validated envelope on `SessionProvider` initialisation, leaving `evaluation` null, in `src/state/SessionProvider.tsx` satisfying FR-034
+- [x] T053 [US4] Persist after every action changing `canvasTree` or `revealedCategories` in `src/state/SessionProvider.tsx`, excluding the Evaluation from the envelope (FR-032, FR-034)
 
 **Checkpoint**: All four user stories independently functional
+
+> **Checkpoint status — VERIFIED. All four user stories complete.**
+>
+> - ✅ `npx vitest run` — **158 tests passing** across 11 files (25 new for US4)
+> - ✅ All 9 persistence contract cases from [contracts/persistence.md](./contracts/persistence.md) green
+> - ✅ `npm run lint` clean; `npm run build` clean (197.83 kB JS); Docker healthy, app 200
+> - ✅ Domain purity still holds — no storage access anywhere under `src/domain/` or `src/challenges/`
+>
+> **Restore runs in `useReducer`'s lazy initialiser**, not an effect, so a returning user never sees an empty Canvas flash before their work reappears.
+>
+> **A first-render write guard was needed.** The save effect fires on mount, which would rewrite exactly what was just read — and on a fresh session would create a storage key holding nothing. A `hydrated` ref skips that first write.
+>
+> **Persistence broke test isolation, which is worth recording.** Once `SessionProvider` restores from storage on init, any test rendering `<App />` without an explicit `initialState` inherits whatever the previous test saved — three US2 reveal tests began failing for this reason alone. Fixed globally with a `localStorage.clear()` in `src/test-setup.ts` rather than per-file, so no future test has to remember.
 
 ---
 

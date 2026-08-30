@@ -105,29 +105,42 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 > Write these FIRST and confirm they FAIL before implementing
 
-- [ ] T021 [P] [US1] Write the 11 evaluator contract tests in `src/domain/evaluator.test.ts` exactly as enumerated in [contracts/evaluator.md](./contracts/evaluator.md) — empty tree scores 0, correct tree scores 100, empty rule set, extra-wrapper containment failure, root-level containment failure, duplicate with one correct passing, all-duplicates-misplaced failing, inert extra Nodes, absurd nesting not throwing, determinism, and non-mutation of inputs
-- [ ] T022 [P] [US1] Write Score computation tests in `src/domain/score.test.ts` — 11 of 11 yields exactly 100, 10 of 11 rounds to 91 at display, 0 of 11 yields 0, and a total of 0 yields 0 rather than `NaN`
-- [ ] T023 [P] [US1] Write the integration test for the design-and-evaluate journey in `tests/integration/design-and-evaluate.test.tsx` covering spec Acceptance Scenarios 1–6
+- [x] T021 [P] [US1] Write the 11 evaluator contract tests in `src/domain/evaluator.test.ts` exactly as enumerated in [contracts/evaluator.md](./contracts/evaluator.md) — empty tree scores 0, correct tree scores 100, empty rule set, extra-wrapper containment failure, root-level containment failure, duplicate with one correct passing, all-duplicates-misplaced failing, inert extra Nodes, absurd nesting not throwing, determinism, and non-mutation of inputs
+- [x] T022 [P] [US1] Write Score computation tests in `src/domain/score.test.ts` — 11 of 11 yields exactly 100, 10 of 11 rounds to 91 at display, 0 of 11 yields 0, and a total of 0 yields 0 rather than `NaN`
+- [x] T023 [P] [US1] Write the integration test for the design-and-evaluate journey in `tests/integration/design-and-evaluate.test.tsx` covering spec Acceptance Scenarios 1–6
 
 ### Implementation for User Story 1
 
-- [ ] T024 [P] [US1] Implement `computeScore` at full float precision in `src/domain/score.ts` satisfying FR-026 and FR-027
-- [ ] T025 [US1] Implement the pure `evaluate(canvasTree, rules)` function in `src/domain/evaluator.ts` — existential matching for both Rule kinds, direct-parent-only containment, one `RuleResult` per Rule in Challenge order, never throwing (FR-020 to FR-025)
-- [ ] T026 [P] [US1] Build the Services panel listing all Services grouped by category in `src/components/services/ServicesPanel.tsx` satisfying FR-008
-- [ ] T027 [US1] Build the draggable Service catalog entry using `useDraggable` with drag data `{ kind: 'service', serviceId }` in `src/components/services/ServiceCatalogItem.tsx` satisfying FR-009
-- [ ] T028 [P] [US1] Build the Requirements panel rendering the Challenge title, description, and Visible Requirements in `src/components/requirements/RequirementsPanel.tsx` satisfying FR-001 and FR-002
-- [ ] T029 [US1] Build the Canvas root as a droppable accepting drops at root level in `src/components/canvas/Canvas.tsx` satisfying FR-011
-- [ ] T030 [US1] Build the recursive Canvas Node — both `useDroppable` and `useDraggable` with drag data `{ kind: 'node', nodeId }` — rendering children nested with visible containment depth, in `src/components/canvas/CanvasNode.tsx`
-- [ ] T031 [US1] Wire `DndContext` in `src/App.tsx` with collision detection composing `pointerWithin` and a `rectIntersection` fallback, resolving overlapping droppables by greatest tree depth per [research.md](./research.md) R-01
-- [ ] T032 [US1] Implement the `onDragEnd` handler in `src/App.tsx` dispatching `ADD_NODE` for `kind: 'service'` drags and `MOVE_NODE` for `kind: 'node'` drags, with no tree mutation in component code (FR-012, FR-015)
-- [ ] T033 [US1] Verify no drag-time validity signalling exists on any droppable in `src/components/canvas/Canvas.tsx` and `src/components/canvas/CanvasNode.tsx` — no highlight, cursor change, or disabled state indicating a valid or invalid parent (FR-013)
-- [ ] T034 [P] [US1] Build the delete confirmation dialog in `src/components/canvas/DeleteConfirmDialog.tsx` satisfying FR-017
-- [ ] T035 [US1] Wire Node deletion in `src/components/canvas/CanvasNode.tsx` — `REQUEST_DELETE` prompting only when `hasChildren` is true, otherwise removing immediately; `CONFIRM_DELETE` cascading to the subtree (FR-016, FR-017)
-- [ ] T036 [US1] Wire the header submit control to dispatch `SUBMIT`, invoking `evaluate` with the current Canvas Tree and the Challenge Rules, in `src/state/session-reducer.ts` and `src/components/Header.tsx`
-- [ ] T037 [P] [US1] Build the Score display showing the rounded Score beside the passed-Rule count in `src/components/requirements/ScoreDisplay.tsx` satisfying FR-028
-- [ ] T038 [US1] Build the Evaluation results list rendering **every** Rule with pass/fail status, and a Recommendation on each failure, in `src/components/requirements/EvaluationResults.tsx` satisfying FR-023, FR-024, and FR-037
+- [x] T024 [P] [US1] Implement `computeScore` at full float precision in `src/domain/score.ts` satisfying FR-026 and FR-027
+- [x] T025 [US1] Implement the pure `evaluate(canvasTree, rules)` function in `src/domain/evaluator.ts` — existential matching for both Rule kinds, direct-parent-only containment, one `RuleResult` per Rule in Challenge order, never throwing (FR-020 to FR-025)
+- [x] T026 [P] [US1] Build the Services panel listing all Services grouped by category in `src/components/services/ServicesPanel.tsx` satisfying FR-008
+- [x] T027 [US1] Build the draggable Service catalog entry using `useDraggable` with drag data `{ kind: 'service', serviceId }` in `src/components/services/ServiceCatalogItem.tsx` satisfying FR-009
+- [x] T028 [P] [US1] Build the Requirements panel rendering the Challenge title, description, and Visible Requirements in `src/components/requirements/RequirementsPanel.tsx` satisfying FR-001 and FR-002
+- [x] T029 [US1] Build the Canvas root as a droppable accepting drops at root level in `src/components/canvas/Canvas.tsx` satisfying FR-011
+- [x] T030 [US1] Build the recursive Canvas Node — both `useDroppable` and `useDraggable` with drag data `{ kind: 'node', nodeId }` — rendering children nested with visible containment depth, in `src/components/canvas/CanvasNode.tsx`
+- [x] T031 [US1] Wire `DndContext` in `src/App.tsx` with collision detection composing `pointerWithin` and a `rectIntersection` fallback, resolving overlapping droppables by greatest tree depth per [research.md](./research.md) R-01
+- [x] T032 [US1] Implement the `onDragEnd` handler in `src/App.tsx` dispatching `ADD_NODE` for `kind: 'service'` drags and `MOVE_NODE` for `kind: 'node'` drags, with no tree mutation in component code (FR-012, FR-015)
+- [x] T033 [US1] Verify no drag-time validity signalling exists on any droppable in `src/components/canvas/Canvas.tsx` and `src/components/canvas/CanvasNode.tsx` — no highlight, cursor change, or disabled state indicating a valid or invalid parent (FR-013)
+- [x] T034 [P] [US1] Build the delete confirmation dialog in `src/components/canvas/DeleteConfirmDialog.tsx` satisfying FR-017
+- [x] T035 [US1] Wire Node deletion in `src/components/canvas/CanvasNode.tsx` — `REQUEST_DELETE` prompting only when `hasChildren` is true, otherwise removing immediately; `CONFIRM_DELETE` cascading to the subtree (FR-016, FR-017)
+- [x] T036 [US1] Wire the header submit control to dispatch `SUBMIT`, invoking `evaluate` with the current Canvas Tree and the Challenge Rules, in `src/state/session-reducer.ts` and `src/components/Header.tsx`
+- [x] T037 [P] [US1] Build the Score display showing the rounded Score beside the passed-Rule count in `src/components/requirements/ScoreDisplay.tsx` satisfying FR-028
+- [x] T038 [US1] Build the Evaluation results list rendering **every** Rule with pass/fail status, and a Recommendation on each failure, in `src/components/requirements/EvaluationResults.tsx` satisfying FR-023, FR-024, and FR-037
 
 **Checkpoint**: US1 is fully functional. The Required Architecture scores exactly 100; an empty Canvas scores 0 with 11 Recommendations. This is a demonstrable MVP.
+
+> **Checkpoint status — VERIFIED. 🎯 MVP reached.**
+>
+> - ✅ `npx vitest run` — **117 tests passing** across 7 files
+> - ✅ All 11 evaluator contract cases from [contracts/evaluator.md](./contracts/evaluator.md) green
+> - ✅ Required Architecture scores **exactly 100**; empty Canvas scores **0** with all 11 Recommendations shown
+> - ✅ `npm run lint` — zero errors, zero warnings; `npm run build` clean (195.21 kB JS, 10.25 kB CSS)
+> - ✅ `docker compose up --build -d` — healthy, app and deep-link both 200
+> - ✅ **T033 verified by absence**: neither `Canvas.tsx` nor `CanvasNode.tsx` destructures `isOver` from `useDroppable`, so no drop-target validity signal is reachable (FR-013). The only drag-time styling is `isDragging` on the item being dragged.
+>
+> **A real defect the tests caught.** `computeScore` was written as `passed * (100 / total)`, which yields **100.00000000000001** for 11 of 11 — silently failing SC-002's "exactly 100". Reordered to `(passed / total) * 100`, which makes the perfect case exactly `1 * 100`. The comment in `score.ts` records why the order matters.
+>
+> **Deviation — drag gestures are not simulated in tests.** dnd-kit drags depend on layout measurements jsdom does not produce, so simulating pointer events would test the mock rather than the app. The drop → reducer-action translation is covered by unit and integration tests; the gesture itself is verified manually per [quickstart.md](./quickstart.md). `src/components/canvas/collision.ts` (depth-wins resolution, research R-01) is therefore covered by reasoning and manual check, not automated test.
 
 ---
 

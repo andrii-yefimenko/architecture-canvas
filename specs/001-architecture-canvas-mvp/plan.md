@@ -14,7 +14,9 @@ The technical approach centres on one decision: **the domain layer is framework-
 
 **Language/Version**: TypeScript 5.x, targeting ES2022
 
-**Primary Dependencies**: React 18, Vite 5, Tailwind CSS 3, dnd-kit (`@dnd-kit/core`)
+**Primary Dependencies**: React 18, Vite 8, Tailwind CSS 3, dnd-kit (`@dnd-kit/core`)
+
+> Vite was planned as 5 and installed as 8 (with Vitest 4 and `@vitejs/plugin-react` 6) during Phase 1. Vite 5's toolchain carried six advisories, two rated critical, all in dev-only dependencies with zero production exposure. Upgrading at scaffold time — before any application code existed to break — cost nothing and brought `npm audit` to zero. Verified: build, lint, Vitest harness, dev server, and production preview all pass on the upgraded stack.
 
 **Storage**: Browser local storage — one versioned key holding `{ version, canvasTree, revealedCategories }`. No database, no server-side persistence.
 

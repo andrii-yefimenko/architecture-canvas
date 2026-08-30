@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+.claude
+.specify
+specs
+docs
+*.md
+.vscode
+.idea
+Dockerfile
+.dockerignore
+docker-compose.yml

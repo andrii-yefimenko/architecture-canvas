@@ -29,17 +29,33 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 **Purpose**: Project initialization, tooling, and deployment shell
 
-- [ ] T001 Scaffold Vite + React + TypeScript project at repository root, creating `package.json`, `vite.config.ts`, `index.html`, `src/main.tsx`
-- [ ] T002 Configure TypeScript strict mode and the `@/` path alias in `tsconfig.json`
-- [ ] T003 [P] Install and configure Tailwind CSS in `tailwind.config.js`, `postcss.config.js`, and `src/styles/index.css`
-- [ ] T004 [P] Configure Vitest with jsdom and React Testing Library in `vite.config.ts` and `src/test-setup.ts`
-- [ ] T005 [P] Configure ESLint and Prettier in `eslint.config.js` and `.prettierrc`
-- [ ] T006 [P] Install `@dnd-kit/core` and record the pinned version in `package.json`
-- [ ] T007 [P] Write multi-stage `Dockerfile` — Node build stage producing a static bundle, nginx runtime stage
-- [ ] T008 [P] Write `nginx.conf` with SPA history fallback to `index.html`
-- [ ] T009 [P] Write `docker-compose.yml` publishing the nginx container on port 3000
+- [x] T001 Scaffold Vite + React + TypeScript project at repository root, creating `package.json`, `vite.config.ts`, `index.html`, `src/main.tsx`
+- [x] T002 Configure TypeScript strict mode and the `@/` path alias in `tsconfig.json`
+- [x] T003 [P] Install and configure Tailwind CSS in `tailwind.config.js`, `postcss.config.js`, and `src/styles/index.css`
+- [x] T004 [P] Configure Vitest with jsdom and React Testing Library in `vite.config.ts` and `src/test-setup.ts`
+- [x] T005 [P] Configure ESLint and Prettier in `eslint.config.js` and `.prettierrc`
+- [x] T006 [P] Install `@dnd-kit/core` and record the pinned version in `package.json`
+- [x] T007 [P] Write multi-stage `Dockerfile` — Node build stage producing a static bundle, nginx runtime stage
+- [x] T008 [P] Write `nginx.conf` with SPA history fallback to `index.html`
+- [x] T009 [P] Write `docker-compose.yml` publishing the nginx container on port 3000
 
 **Checkpoint**: `npm run dev` serves a blank app; `docker compose up --build -d` serves it at `localhost:3000`
+
+> **Checkpoint status — verified on Node 22.22.1 / npm 9.2.0:**
+>
+> Stack installed as Vite 8.2.2 / Vitest 4.1.11 / `@vitejs/plugin-react` 6.1.1 / jsdom 30, upgraded from the planned Vite 5 during this phase to clear six dev-only advisories (two critical). `npm audit` now reports **0 vulnerabilities**. See the note in [plan.md](./plan.md) Technical Context.
+>
+> - ✅ `npm install` — 308 packages, `package-lock.json` generated, 0 vulnerabilities
+> - ✅ `npm run build` — typecheck clean, bundle emitted (140.81 kB JS, 3.97 kB Tailwind CSS)
+> - ✅ `npm run lint` — zero errors; domain-purity rule confirmed firing against a probe file
+> - ✅ `npm run dev` — HTTP 200 at `localhost:3000`
+> - ✅ `npm run preview` — production `dist/` serves; hashed JS and CSS assets resolve; deep-link fallback returns 200
+> - ✅ Vitest harness — globals, jsdom, and `test-setup.ts` all confirmed working
+> - ✅ `docker compose up --build -d` — image builds (73.8 MB), container reports **healthy**, app serves at `localhost:3000`
+> - ✅ nginx SPA fallback — `/deep/route` and `/challenge/1/edit` return 200; `/assets/nope.js` correctly 404s rather than falling back
+> - ✅ nginx cache headers — hashed assets `public, immutable, max-age=31536000`; `index.html` `no-cache, no-store, must-revalidate`; gzip negotiated with `Vary: Accept-Encoding`
+>
+> **One defect found and fixed during Docker verification.** The healthcheck probed `http://localhost:3000/`, which resolves to `::1` first inside the container, while `listen 3000;` binds IPv4 only — so the container ran perfectly but reported `unhealthy`. Fixed on both sides: `nginx.conf` gained `listen [::]:3000;` for genuine dual-stack serving, and the healthcheck now targets `127.0.0.1` unambiguously. Confirmed healthy after rebuild.
 
 ---
 

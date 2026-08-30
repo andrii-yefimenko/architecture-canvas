@@ -6,6 +6,7 @@ import { DeleteConfirmDialog } from '@/components/canvas/DeleteConfirmDialog';
 import { RequirementsPanel } from '@/components/requirements/RequirementsPanel';
 import { ServicesPanel } from '@/components/services/ServicesPanel';
 import { SessionProvider } from '@/state/SessionProvider';
+import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
 
 /**
@@ -85,9 +86,9 @@ function Workspace() {
   );
 }
 
-export function App() {
+export function App({ initialState }: { readonly initialState?: SessionState }) {
   return (
-    <SessionProvider>
+    <SessionProvider {...(initialState ? { initialState } : {})}>
       <Workspace />
     </SessionProvider>
   );

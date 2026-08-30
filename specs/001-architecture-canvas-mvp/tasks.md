@@ -181,16 +181,27 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T043 [P] [US3] Write the integration test for revision and resubmission in `tests/integration/revise-and-resubmit.test.tsx` covering spec Acceptance Scenarios 1–4, asserting the Evaluation remains visible after a Canvas edit
+- [x] T043 [P] [US3] Write the integration test for revision and resubmission in `tests/integration/revise-and-resubmit.test.tsx` covering spec Acceptance Scenarios 1–4, asserting the Evaluation remains visible after a Canvas edit
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Set `evaluationStale` on `ADD_NODE`, `MOVE_NODE`, and `CONFIRM_DELETE` when an Evaluation exists — keeping the Evaluation itself, never clearing it — in `src/state/session-reducer.ts` satisfying FR-030
-- [ ] T045 [US3] Clear `evaluationStale` and replace the Evaluation on `SUBMIT` in `src/state/session-reducer.ts` satisfying FR-031
-- [ ] T046 [US3] Render the stale indicator — text making clear the results describe the previous submission — in `src/components/requirements/EvaluationResults.tsx` satisfying FR-030
-- [ ] T047 [US3] Confirm the Canvas never locks and the submit control never disables after a submission, in `src/components/Header.tsx` satisfying FR-029
+- [x] T044 [US3] Set `evaluationStale` on `ADD_NODE`, `MOVE_NODE`, and `CONFIRM_DELETE` when an Evaluation exists — keeping the Evaluation itself, never clearing it — in `src/state/session-reducer.ts` satisfying FR-030
+- [x] T045 [US3] Clear `evaluationStale` and replace the Evaluation on `SUBMIT` in `src/state/session-reducer.ts` satisfying FR-031
+- [x] T046 [US3] Render the stale indicator — text making clear the results describe the previous submission — in `src/components/requirements/EvaluationResults.tsx` satisfying FR-030
+- [x] T047 [US3] Confirm the Canvas never locks and the submit control never disables after a submission, in `src/components/Header.tsx` satisfying FR-029
 
 **Checkpoint**: US1, US2, and US3 all work independently
+
+> **Checkpoint status — VERIFIED.**
+>
+> - ✅ `npx vitest run` — **133 tests passing** across 9 files (7 new for US3)
+> - ✅ `npm run lint` clean; `npm run build` clean (196.56 kB JS); Docker healthy, app 200
+>
+> **Most of this phase was already built.** T044 and T045 (staleness set and cleared in the reducer) landed in Phase 2, and T046 (the stale banner) in Phase 3, because the reducer and Evaluation panel were written against their FRs at the time. T047 needed no work — `Header.tsx` has never had a disabled state. Only **T043, the integration test, was new**; the rest of this phase was verification that the earlier work actually satisfies US3 end to end. It does.
+>
+> **One production change**: `SessionProvider` gained an optional `initialState` prop, forwarded through `App`. It is the injection seam T052 will use to restore a persisted session on load, and it lets these tests start from a built Canvas Tree — necessary because jsdom cannot measure the layout dnd-kit needs, so drags cannot be simulated.
+>
+> **Test-scoping note**: dnd-kit renders its own `role="status"` live region for drag announcements, so an unscoped `getByRole('status')` matches two elements. Stale-banner assertions are scoped to the Evaluation region.
 
 ---
 

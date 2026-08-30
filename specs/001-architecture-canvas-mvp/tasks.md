@@ -152,15 +152,24 @@ Single-project frontend SPA. `src/` and `tests/` at repository root, per [plan.m
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T039 [P] [US2] Write the integration test for requirement discovery in `tests/integration/reveal-requirements.test.tsx` covering spec Acceptance Scenarios 1–4, including the Score-neutrality comparison
+- [x] T039 [P] [US2] Write the integration test for requirement discovery in `tests/integration/reveal-requirements.test.tsx` covering spec Acceptance Scenarios 1–4, including the Score-neutrality comparison
 
 ### Implementation for User Story 2
 
-- [ ] T040 [US2] Build the Hidden Requirement Category component — a reveal control when concealed, the requirement list once revealed — in `src/components/requirements/HiddenRequirementCategory.tsx` satisfying FR-004 and FR-005
-- [ ] T041 [US2] Render one Category component per Challenge Category in `src/components/requirements/RequirementsPanel.tsx`, concealed on load, satisfying FR-003
-- [ ] T042 [US2] Wire `REVEAL_CATEGORY` dispatch so revealed Categories persist for the session and never influence the Evaluation or Score, in `src/state/session-reducer.ts` satisfying FR-006 and FR-007
+- [x] T040 [US2] Build the Hidden Requirement Category component — a reveal control when concealed, the requirement list once revealed — in `src/components/requirements/HiddenRequirementCategory.tsx` satisfying FR-004 and FR-005
+- [x] T041 [US2] Render one Category component per Challenge Category in `src/components/requirements/RequirementsPanel.tsx`, concealed on load, satisfying FR-003
+- [x] T042 [US2] Wire `REVEAL_CATEGORY` dispatch so revealed Categories persist for the session and never influence the Evaluation or Score, in `src/state/session-reducer.ts` satisfying FR-006 and FR-007
 
 **Checkpoint**: US1 and US2 both work independently
+
+> **Checkpoint status — VERIFIED.**
+>
+> - ✅ `npx vitest run` — **126 tests passing** across 8 files (9 new for US2)
+> - ✅ `npm run lint` clean; `npm run build` clean (196.50 kB JS)
+> - ✅ `docker compose up --build -d` — healthy, app 200, all four Categories' content present in the served bundle
+> - ✅ Score neutrality (FR-007) proven three ways: the Evaluation takes only the Canvas Tree and Rules as inputs, `REVEAL_CATEGORY` leaves an existing Evaluation untouched by reference, and an end-to-end submit before/after revealing all four Categories yields an identical Score
+>
+> **Content note — requirement text is duplicated across tiers by design.** `MVP.md` gives both the Presentation and Application tiers the identical line "Code will be hosted on server." This surfaced as two test failures using `getByText`, which correctly refused to match two elements. The data is faithful to the source and was left unchanged; the assertions were corrected instead — concealment is now asserted only for text unique to a hidden Category, since a shared string is legitimately on screen via the revealed one. Worth knowing that revealing both tiers shows that sentence twice.
 
 ---
 

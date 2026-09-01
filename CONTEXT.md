@@ -26,6 +26,24 @@ The nested hierarchy of Nodes. This is the evaluator's input, and the thing pers
 
 A single exercise: title, description, Visible Requirements, Hidden Requirements, its Service catalog, and its Rules. The MVP ships one Challenge.
 
+## Challenge ID
+
+The stable identifier for a Challenge — used in the Challenge Registry, in routing (`/challenge/:id`), and to scope that Challenge's persisted state. Distinct from a Challenge's title, which is display text and may change without affecting the ID.
+
+## Challenge Registry
+
+The ordered list of every Challenge available in the app. Backs the Catalog Page. Registry order is authorial — the order Challenges are defined in, not sorted or computed.
+
+*Avoid:* "challenge list" as a code or doc identifier — "Registry" is the canonical term because it also implies the lookup-by-Challenge-ID contract.
+
+## Catalog Page
+
+The landing page listing every Challenge in the Challenge Registry as a card (title, difficulty, short description, tags, and a Start Challenge button). Entry point to a Task Page. See `docs/pages-ux/02-CATALOG-PAGE.md`.
+
+## Task Page
+
+The page where a user works a single Challenge — the three-panel layout (Requirements, Canvas, Services) plus Header described in `MVP.md`'s General Design and `docs/pages-ux/01-TASK-PAGE.md`. Reached via the Catalog Page's Start Challenge button, at `/challenge/:id`.
+
 ## Visible Requirement
 
 A requirement shown to the user immediately, before any interaction.

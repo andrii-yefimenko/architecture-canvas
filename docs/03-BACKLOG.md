@@ -2,7 +2,7 @@
 
 Ideas deliberately deferred, kept so they aren't lost. Nothing here is rejected on merit unless noted; most are simply larger than the MVP should carry.
 
-See `docs/02-PRODUCT-UX.md` for what was decided instead, and `MVP.md` for the MVP boundary.
+See `docs/pages-ux/01-TASK-PAGE.md` for what was decided instead, and `MVP.md` for the MVP boundary.
 
 ## Deferred during the UX review (2026-08-29)
 

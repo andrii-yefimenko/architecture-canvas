@@ -98,10 +98,12 @@ tests/
 | Document | Purpose |
 |---|---|
 | [`PROJECT.md`](PROJECT.md) | Product vision and the problem being solved |
-| [`MVP.md`](MVP.md) | MVP specification, Challenge #1, and acceptance criteria |
+| [`MVP.md`](MVP.md) | MVP specification and acceptance criteria |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary — canonical vocabulary |
 | [`docs/01-RESEARCH.md`](docs/01-RESEARCH.md) | Target audience, positioning, go-to-market |
-| [`docs/02-PRODUCT-UX.md`](docs/02-PRODUCT-UX.md) | Settled UX and evaluation mechanics |
+| [`docs/pages-ux/01-TASK-PAGE.md`](docs/pages-ux/01-TASK-PAGE.md) | Task Page — settled UX and evaluation mechanics |
+| [`docs/pages-ux/02-CATALOG-PAGE.md`](docs/pages-ux/02-CATALOG-PAGE.md) | Catalog Page — challenge list UX |
+| [`docs/challenges/`](docs/challenges/) | Per-challenge specs (template + Challenge #1) |
 | [`docs/03-BACKLOG.md`](docs/03-BACKLOG.md) | Deferred / post-MVP ideas |
 | [`docs/04-TECH-STACK.md`](docs/04-TECH-STACK.md) | Technical stack decisions and rationale |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |

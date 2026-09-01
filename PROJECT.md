@@ -22,7 +22,7 @@ I want to create a platform that simulates the real-world work of an architect: 
 - The UI is as user-friendly as possible and not cluttered.
 - Once the architecture is ready, you submit it for review by the AI, which compares it to the static data and also provides suggestions on how it should be modified, what best practices to follow, and why certain aspects are incorrect.
 
-> **Note:** This section describes the *future* product, not the MVP. In particular, "specify some basic required parameters" is a future capability — in the MVP a service's type is its role (e.g. "EC2 (Frontend)" and "EC2 (Backend)" are distinct catalog entries), and there is no post-drop configuration step. See `docs/02-PRODUCT-UX.md`.
+> **Note:** This section describes the *future* product, not the MVP. In particular, "specify some basic required parameters" is a future capability — in the MVP a service's type is its role (e.g. "EC2 (Frontend)" and "EC2 (Backend)" are distinct catalog entries), and there is no post-drop configuration step. See `docs/pages-ux/01-TASK-PAGE.md`.
 
 ## 5. MVP 
 

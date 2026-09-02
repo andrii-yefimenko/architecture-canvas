@@ -83,7 +83,7 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Write `tests/integration/challenge-02-loop.test.tsx` covering spec Acceptance Scenarios 1–4: Challenge #2's own title/description/Visible Requirements render (not Challenge #1's), only Challenge #2's Service catalog is listed, a Canvas Tree matching its Required Architecture scores exactly 100 with all 9 Rules passed, and a Canvas Tree with the ECS Cluster outside a Private Subnet fails that Rule with a Recommendation (depends on T013, T003, T004)
+- [x] T016 [US2] Write `tests/integration/challenge-02-loop.test.tsx` covering spec Acceptance Scenarios 1–4: Challenge #2's own title/description/Visible Requirements render (not Challenge #1's), only Challenge #2's Service catalog is listed, a Canvas Tree matching its Required Architecture scores exactly 100 with all 9 Rules passed, and a Canvas Tree with the ECS Cluster outside a Private Subnet fails that Rule with a Recommendation (depends on T013, T003, T004)
 
 **Checkpoint**: User Stories 1 and 2 both work — this is the full "browse and complete either Challenge" slice. No implementation code was needed beyond Phase 2/3: `RequirementsPanel`, `ServicesPanel`, and the evaluator already consume `challenge` generically via `useSession()` (confirmed in `research.md`'s "Page composition" finding), and Challenge #2 introduces no new Rule kind.
 

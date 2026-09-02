@@ -37,7 +37,7 @@ Restated here for one consolidated view of everything not in the MVP.
 - **AI assistant / AI chat** simulating the client conversation behind hidden requirements — the core of the future-product vision in `PROJECT.md`.
 - **AI-driven architecture review** with best-practice suggestions and explanations of *why* a decision is wrong.
 - **Dynamic challenge generation.**
-- **Multiple challenges** (MVP ships Challenge #1 only).
+- **Multiple challenges** (MVP ships Challenge #1 and Challenge #2 only).
 - **Multiple cloud providers** (MVP is AWS-only).
 - **Advanced architecture validation** beyond hardcoded parent-child rules.
 

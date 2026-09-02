@@ -15,8 +15,15 @@ type Route =
 ## `useRoute()`
 
 ```ts
-function useRoute(): Route;
+interface UseRouteResult {
+  readonly route: Route;
+  readonly navigate: (path: string) => void;
+}
+
+function useRoute(): UseRouteResult;
 ```
+
+`navigate` is returned alongside `route` rather than exported as a free function, since it must update the same `useState` the hook's re-renders are driven by — a module-level `navigate` would have no way to notify the one component subscribed via `useRoute()`. Consumers below reach it via a prop passed down from `App.tsx`, the hook's single call site.
 
 A hook, not a component tree — there is exactly one call site (`App.tsx`), so no `<Router>`/`<Route>` composition is needed.
 

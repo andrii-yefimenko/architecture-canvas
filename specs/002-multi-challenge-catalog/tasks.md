@@ -29,7 +29,7 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 **Purpose**: The one shared type change every other task in this feature depends on.
 
-- [ ] T001 Extend the `Challenge` interface in `src/domain/types.ts` with `difficulty: 'beginner' | 'intermediate' | 'advanced'` and `tags: readonly string[]`, per `data-model.md`'s "Challenge (cardinality change only)" section
+- [x] T001 Extend the `Challenge` interface in `src/domain/types.ts` with `difficulty: 'beginner' | 'intermediate' | 'advanced'` and `tags: readonly string[]`, per `data-model.md`'s "Challenge (cardinality change only)" section
 
 **Checkpoint**: No new npm dependency is required for this feature (confirmed in `research.md`); `nginx.conf` and `docker-compose.yml` need no change (SPA fallback already covers `/challenge/:id`). Nothing else to scaffold before Foundational work starts.
 
@@ -41,13 +41,13 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 [P] Add `difficulty: 'beginner'` and `tags: ['AWS', 'Single VPC', 'Three-Tier']` to `src/challenges/challenge-01.ts`, matching `docs/challenges/01-SIMPLE-WEB-APPLICATION.md`'s Metadata (depends on T001)
-- [ ] T003 [P] Author `src/challenges/challenge-02.ts` from `docs/challenges/02-CONTAINERIZED-WEB-APPLICATION.md` — title, description, Visible Requirements, four Hidden Requirement Categories, Service catalog (including the EC2 Frontend/Backend distractors), and all 9 Rules (`presence`/`containment` only), plus `difficulty: 'intermediate'` and its Tags (depends on T001)
-- [ ] T004 Write `src/challenges/challenge-02.test.ts` mirroring `src/challenges/challenge-01.test.ts`'s integrity checks (unique Service/Rule/Category ids, every Rule's `serviceId`/`parentServiceId` resolves, non-empty descriptions/recommendations, non-empty `visibleRequirements`, every Category non-empty) plus the two new checks from `contracts/challenge-registry.md` rules 5–6 (`difficulty` is a literal, `tags` non-empty) (depends on T003)
-- [ ] T005 Create `src/challenges/index.ts` exporting `challengeRegistry: readonly Challenge[] = [challenge01, challenge02]` and `getChallengeById(id: string): Challenge | undefined`, per `contracts/challenge-registry.md` (depends on T002, T003)
-- [ ] T006 Write `src/challenges/index.test.ts` covering `contracts/challenge-registry.md`'s Registry-level integrity rules 1–4: unique ids across the Registry, Registry order matches declaration order, `getChallengeById` round-trips every entry, `getChallengeById` returns `undefined` for an unknown id (depends on T005)
-- [ ] T007 [P] Create `src/routing/useRoute.ts` implementing `useRoute(): Route` and `navigate(path: string): void` per `contracts/routing.md` (pathname parsing, `history.pushState`, `popstate` listener with cleanup)
-- [ ] T008 Write `src/routing/useRoute.test.ts` covering all 6 required test cases in `contracts/routing.md` (depends on T007)
+- [x] T002 [P] Add `difficulty: 'beginner'` and `tags: ['AWS', 'Single VPC', 'Three-Tier']` to `src/challenges/challenge-01.ts`, matching `docs/challenges/01-SIMPLE-WEB-APPLICATION.md`'s Metadata (depends on T001)
+- [x] T003 [P] Author `src/challenges/challenge-02.ts` from `docs/challenges/02-CONTAINERIZED-WEB-APPLICATION.md` — title, description, Visible Requirements, four Hidden Requirement Categories, Service catalog (including the EC2 Frontend/Backend distractors), and all 9 Rules (`presence`/`containment` only), plus `difficulty: 'intermediate'` and its Tags (depends on T001)
+- [x] T004 Write `src/challenges/challenge-02.test.ts` mirroring `src/challenges/challenge-01.test.ts`'s integrity checks (unique Service/Rule/Category ids, every Rule's `serviceId`/`parentServiceId` resolves, non-empty descriptions/recommendations, non-empty `visibleRequirements`, every Category non-empty) plus the two new checks from `contracts/challenge-registry.md` rules 5–6 (`difficulty` is a literal, `tags` non-empty) (depends on T003)
+- [x] T005 Create `src/challenges/index.ts` exporting `challengeRegistry: readonly Challenge[] = [challenge01, challenge02]` and `getChallengeById(id: string): Challenge | undefined`, per `contracts/challenge-registry.md` (depends on T002, T003)
+- [x] T006 Write `src/challenges/index.test.ts` covering `contracts/challenge-registry.md`'s Registry-level integrity rules 1–4: unique ids across the Registry, Registry order matches declaration order, `getChallengeById` round-trips every entry, `getChallengeById` returns `undefined` for an unknown id (depends on T005)
+- [x] T007 [P] Create `src/routing/useRoute.ts` implementing `useRoute(): Route` and `navigate(path: string): void` per `contracts/routing.md` (pathname parsing, `history.pushState`, `popstate` listener with cleanup)
+- [x] T008 Write `src/routing/useRoute.test.ts` covering all 6 required test cases in `contracts/routing.md` (depends on T007)
 
 **Checkpoint**: Foundation ready — the Challenge Registry has two Challenges and the router can parse/navigate both route shapes. User story implementation can now begin.
 

@@ -117,6 +117,9 @@ export type Rule = PresenceRule | ContainmentRule;
 
 // --- Challenge -------------------------------------------------------------
 
+/** Shown on a Challenge's Catalog Page card. Set per Challenge, not computed. */
+export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
+
 export interface Challenge {
   readonly id: string;
   readonly title: string;
@@ -127,6 +130,15 @@ export interface Challenge {
   readonly hiddenRequirementCategories: readonly HiddenRequirementCategory[];
   readonly services: readonly Service[];
   readonly rules: readonly Rule[];
+  /** Shown on the Catalog Page card. Presentational only; never evaluated. */
+  readonly difficulty: Difficulty;
+  /** Shown on the Catalog Page card. Presentational only; not used for filtering. */
+  readonly tags: readonly string[];
+  /**
+   * One or two sentences for the Catalog Page card — distinct from
+   * `description`, which is the full brief shown on the Task Page.
+   */
+  readonly shortDescription: string;
 }
 
 // --- Evaluation ------------------------------------------------------------

@@ -16,6 +16,10 @@ export const challenge01: Challenge = {
   description:
     "You're a group of friends who want to create a simple website where you can " +
     'track your expenses for joint purchases and split them evenly.',
+  difficulty: 'beginner',
+  tags: ['AWS', 'Single VPC', 'Three-Tier'],
+  shortDescription:
+    'Design a basic three-tier web app — frontend, backend, and database — reachable from the Internet, without exposing the pieces that shouldn\'t be.',
 
   visibleRequirements: [
     'The application consists of three components: Frontend, Backend, and a SQL Database.',

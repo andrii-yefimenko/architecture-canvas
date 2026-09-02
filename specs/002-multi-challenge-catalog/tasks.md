@@ -97,12 +97,14 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Rewrite `src/state/persistence.ts` per `contracts/persistence.md`: add `storageKey(challengeId)` computing `` `architecture-canvas:session:${challengeId}` ``, add `challengeId` to `PersistedSession`, and update `saveSession`/`loadSession` to take a `challengeId` and validate the envelope's `challengeId` field against it (checks 1–6 in the contract, including the new check 3)
-- [ ] T018 [US3] Update `src/state/SessionProvider.tsx`'s `buildInitialState` to pass `challenge.id` into `loadSession` and `saveSession` (depends on T017)
-- [ ] T019 [P] [US3] Update `src/state/persistence.test.ts`: re-run the 9 original required test cases against a per-Challenge key, and add new cases 10, 11, and 14 from `contracts/persistence.md` (cross-Challenge isolation, mismatched-`challengeId` rejection even when Service ids overlap, reload-without-clearing restores) (depends on T017)
-- [ ] T020 [US3] Write `tests/integration/session-isolation.test.tsx` covering spec Acceptance Scenarios 1–3 (depends on T018)
+- [x] T017 [US3] Rewrite `src/state/persistence.ts` per `contracts/persistence.md`: add `storageKey(challengeId)` computing `` `architecture-canvas:session:${challengeId}` ``, add `challengeId` to `PersistedSession`, and update `saveSession`/`loadSession` to take a `challengeId` and validate the envelope's `challengeId` field against it (checks 1–6 in the contract, including the new check 3)
+- [x] T018 [US3] Update `src/state/SessionProvider.tsx`'s `buildInitialState` to pass `challenge.id` into `loadSession` and `saveSession` (depends on T017)
+- [x] T019 [P] [US3] Update `src/state/persistence.test.ts`: re-run the 9 original required test cases against a per-Challenge key, and add new cases 10, 11, and 14 from `contracts/persistence.md` (cross-Challenge isolation, mismatched-`challengeId` rejection even when Service ids overlap, reload-without-clearing restores) (depends on T017)
+- [x] T020 [US3] Write `tests/integration/session-isolation.test.tsx` covering spec Acceptance Scenarios 1–3 (depends on T018)
 
 **Checkpoint**: User Stories 1, 2, and 3 all work — Challenge sessions no longer leak into each other.
+
+**Critical fix, not originally listed as a task**: `persistence.ts`'s `challengeId` check alone was not sufficient. `App.tsx` renders `<TaskPage challenge={challenge} ...>` for every Task Page route, at the same tree position regardless of which Challenge — without a `key`, React reuses the same component instance across a direct Challenge-to-Challenge navigation, so `SessionProvider`'s `useReducer` lazy initializer never re-runs and the previous Challenge's Canvas Tree would keep showing under the new Challenge's UI, in memory, before persistence even enters the picture. Fixed by adding `key={challenge.id}` to `<TaskPage>` in `App.tsx`, forcing a remount on every Challenge change. `session-isolation.test.tsx` would have caught this had it shipped without the fix — the isolation guarantee genuinely depends on both changes together, not persistence.ts alone.
 
 ---
 

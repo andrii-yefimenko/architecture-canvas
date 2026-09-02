@@ -13,7 +13,7 @@ import { App } from '@/App';
 import { challenge01 } from '@/challenges/challenge-01';
 import { addNode, countNodes, emptyTree } from '@/domain/canvas-tree';
 import type { CanvasTree, NodeId } from '@/domain/types';
-import { STORAGE_KEY, SESSION_VERSION, loadSession } from '@/state/persistence';
+import { storageKey, SESSION_VERSION, loadSession } from '@/state/persistence';
 import { initialSessionState, type SessionState } from '@/state/session-reducer';
 
 // Predates routing: <App /> used to render Challenge #1's Task Page directly.
@@ -115,10 +115,11 @@ describe('the Evaluation is deliberately not restored (FR-034)', () => {
     await user.click(screen.getByRole('button', { name: 'Remove EC2 (Frontend)' }));
     first.unmount();
 
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(challenge01.id));
     expect(raw).not.toBeNull();
     expect(Object.keys(JSON.parse(raw!)).sort()).toEqual([
       'canvasTree',
+      'challengeId',
       'revealedCategories',
       'version',
     ]);
@@ -128,9 +129,10 @@ describe('the Evaluation is deliberately not restored (FR-034)', () => {
 describe('Scenario 3: incompatible stored state (FR-033)', () => {
   it('starts clean on a version mismatch rather than failing', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION + 99,
+        challengeId: challenge01.id,
         canvasTree: seededState().canvasTree,
         revealedCategories: [],
       }),
@@ -142,9 +144,10 @@ describe('Scenario 3: incompatible stored state (FR-033)', () => {
 
   it('starts clean when stored Nodes reference an unknown Service', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: { roots: [{ id: 'x', serviceId: 'retired-service', children: [] }] },
         revealedCategories: [],
       }),
@@ -155,7 +158,7 @@ describe('Scenario 3: incompatible stored state (FR-033)', () => {
   });
 
   it('starts clean on malformed JSON', () => {
-    localStorage.setItem(STORAGE_KEY, 'definitely not json');
+    localStorage.setItem(storageKey(challenge01.id), 'definitely not json');
     expect(() => render(<App />)).not.toThrow();
     expect(screen.getByText(/drag services here/i)).toBeInTheDocument();
   });

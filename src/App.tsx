@@ -30,6 +30,13 @@ export function App({ initialState }: { readonly initialState?: SessionState }) 
 
   return (
     <TaskPage
+      // Forces a remount on a direct Challenge-to-Challenge navigation (e.g.
+      // typing a new /challenge/:id while already on one). Without this key,
+      // React reuses the same TaskPage/SessionProvider instance across the
+      // prop change — useReducer's lazy initialiser never re-runs, and the
+      // previous Challenge's Canvas Tree would still be showing under the
+      // new one's UI, defeating per-Challenge session isolation (FR-013).
+      key={challenge.id}
       challenge={challenge}
       navigate={navigate}
       {...(initialState ? { initialState } : {})}

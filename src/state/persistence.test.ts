@@ -1,15 +1,19 @@
 /**
- * The 9 persistence contract cases from contracts/persistence.md.
+ * The persistence contract cases from
+ * specs/002-multi-challenge-catalog/contracts/persistence.md: the original 9
+ * from spec 001, re-run against a per-Challenge key, plus new cases 10, 11,
+ * and 14 for cross-Challenge isolation.
  *
  * The recurring theme: storage failure must NEVER interrupt work. Persistence
  * is a convenience, so every failure mode degrades to "start clean and carry
- * on", not to an error (SC-009).
+ * on", not to an error (SC-009 in spec 001).
  */
 
 import { challenge01 } from '@/challenges/challenge-01';
+import { challenge02 } from '@/challenges/challenge-02';
 import { addNode, countNodes, emptyTree } from '@/domain/canvas-tree';
 import type { CanvasTree } from '@/domain/types';
-import { STORAGE_KEY, SESSION_VERSION, loadSession, saveSession } from './persistence';
+import { storageKey, SESSION_VERSION, loadSession, saveSession } from './persistence';
 
 function seededTree(): CanvasTree {
   let tree = emptyTree();
@@ -38,9 +42,9 @@ beforeEach(() => {
 
 // --- Case 1 ----------------------------------------------------------------
 describe('case 1: round trip', () => {
-  it('restores the tree and revealed Categories identically (SC-005)', () => {
+  it('restores the tree and revealed Categories identically (SC-005, spec 001)', () => {
     const tree = seededTree();
-    saveSession({ canvasTree: tree, revealedCategories: ['infrastructure', 'data-tier'] });
+    saveSession(challenge01.id, { canvasTree: tree, revealedCategories: ['infrastructure', 'data-tier'] });
 
     const restored = loadSession(challenge01);
     expect(restored).not.toBeNull();
@@ -50,7 +54,7 @@ describe('case 1: round trip', () => {
   });
 
   it('round-trips an empty session', () => {
-    saveSession({ canvasTree: emptyTree(), revealedCategories: [] });
+    saveSession(challenge01.id, { canvasTree: emptyTree(), revealedCategories: [] });
     const restored = loadSession(challenge01);
     expect(restored?.canvasTree.roots).toEqual([]);
     expect(restored?.revealedCategories).toEqual([]);
@@ -68,23 +72,24 @@ describe('case 2: missing key', () => {
 // --- Case 3 ----------------------------------------------------------------
 describe('case 3: malformed JSON', () => {
   it('discards and returns null', () => {
-    localStorage.setItem(STORAGE_KEY, '{not valid json');
+    localStorage.setItem(storageKey(challenge01.id), '{not valid json');
     expect(loadSession(challenge01)).toBeNull();
   });
 
   it('discards JSON that is not an object', () => {
-    localStorage.setItem(STORAGE_KEY, '"a string"');
+    localStorage.setItem(storageKey(challenge01.id), '"a string"');
     expect(loadSession(challenge01)).toBeNull();
   });
 });
 
 // --- Case 4 ----------------------------------------------------------------
-describe('case 4: version mismatch (FR-033)', () => {
+describe('case 4: version mismatch (FR-033, spec 001)', () => {
   it('discards a stale version', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION + 1,
+        challengeId: challenge01.id,
         canvasTree: seededTree(),
         revealedCategories: [],
       }),
@@ -94,8 +99,8 @@ describe('case 4: version mismatch (FR-033)', () => {
 
   it('discards a missing version', () => {
     localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ canvasTree: seededTree(), revealedCategories: [] }),
+      storageKey(challenge01.id),
+      JSON.stringify({ challengeId: challenge01.id, canvasTree: seededTree(), revealedCategories: [] }),
     );
     expect(loadSession(challenge01)).toBeNull();
   });
@@ -104,13 +109,14 @@ describe('case 4: version mismatch (FR-033)', () => {
 // --- Case 5 ----------------------------------------------------------------
 describe('case 5: unknown serviceId in the tree', () => {
   it('discards the whole envelope rather than partially restoring', () => {
-    // This is what makes editing challenge-01.ts safe: renaming a Service id
-    // invalidates stored sessions instead of producing Nodes that reference
-    // Services which no longer exist.
+    // This is what makes editing a Challenge module safe: renaming a Service
+    // id invalidates stored sessions instead of producing Nodes that
+    // reference Services which no longer exist.
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: {
           roots: [{ id: 'a', serviceId: 'no-such-service', children: [] }],
         },
@@ -122,9 +128,10 @@ describe('case 5: unknown serviceId in the tree', () => {
 
   it('discards when the unknown Service is nested deep', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: {
           roots: [
             {
@@ -145,9 +152,10 @@ describe('case 5: unknown serviceId in the tree', () => {
 describe('case 6: unknown Category id', () => {
   it('discards the envelope', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: emptyTree(),
         revealedCategories: ['not-a-category'],
       }),
@@ -159,9 +167,10 @@ describe('case 6: unknown Category id', () => {
 describe('structural validation', () => {
   it('discards a tree whose roots is not an array', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: { roots: 'nope' },
         revealedCategories: [],
       }),
@@ -171,9 +180,10 @@ describe('structural validation', () => {
 
   it('discards a Node missing its children array', () => {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challenge01.id),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId: challenge01.id,
         canvasTree: { roots: [{ id: 'a', serviceId: 'vpc' }] },
         revealedCategories: [],
       }),
@@ -183,7 +193,7 @@ describe('structural validation', () => {
 });
 
 // --- Case 7 ----------------------------------------------------------------
-describe('case 7: storage throws on read (SC-009)', () => {
+describe('case 7: storage throws on read (SC-009, spec 001)', () => {
   it('returns null without throwing, leaving the app usable', () => {
     withStorage(
       {
@@ -200,7 +210,7 @@ describe('case 7: storage throws on read (SC-009)', () => {
 });
 
 // --- Case 8 ----------------------------------------------------------------
-describe('case 8: storage throws on write (SC-009)', () => {
+describe('case 8: storage throws on write (SC-009, spec 001)', () => {
   it('swallows the failure silently', () => {
     withStorage(
       {
@@ -210,7 +220,7 @@ describe('case 8: storage throws on write (SC-009)', () => {
       },
       () => {
         expect(() =>
-          saveSession({ canvasTree: seededTree(), revealedCategories: [] }),
+          saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: [] }),
         ).not.toThrow();
       },
     );
@@ -218,24 +228,71 @@ describe('case 8: storage throws on write (SC-009)', () => {
 });
 
 // --- Case 9 ----------------------------------------------------------------
-describe('case 9: the saved envelope (FR-034)', () => {
+describe('case 9: the saved envelope (FR-034, spec 001)', () => {
   it('contains no Evaluation', () => {
-    saveSession({ canvasTree: seededTree(), revealedCategories: ['data-tier'] });
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: ['data-tier'] });
+    const raw = JSON.parse(localStorage.getItem(storageKey(challenge01.id))!);
 
-    expect(Object.keys(raw).sort()).toEqual(['canvasTree', 'revealedCategories', 'version']);
+    expect(Object.keys(raw).sort()).toEqual(['canvasTree', 'challengeId', 'revealedCategories', 'version']);
     expect(raw).not.toHaveProperty('evaluation');
     expect(JSON.stringify(raw)).not.toMatch(/score|passedCount|results/i);
   });
 
-  it('stamps the current version', () => {
-    saveSession({ canvasTree: emptyTree(), revealedCategories: [] });
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).version).toBe(SESSION_VERSION);
+  it('stamps the current version and its own Challenge ID', () => {
+    saveSession(challenge01.id, { canvasTree: emptyTree(), revealedCategories: [] });
+    const raw = JSON.parse(localStorage.getItem(storageKey(challenge01.id))!);
+    expect(raw.version).toBe(SESSION_VERSION);
+    expect(raw.challengeId).toBe(challenge01.id);
   });
 
-  it('writes to a single key', () => {
-    saveSession({ canvasTree: seededTree(), revealedCategories: [] });
+  it('writes to a single key for that Challenge', () => {
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: [] });
     expect(localStorage.length).toBe(1);
-    expect(localStorage.key(0)).toBe(STORAGE_KEY);
+    expect(localStorage.key(0)).toBe(storageKey(challenge01.id));
+  });
+});
+
+// --- Case 10 -----------------------------------------------------------
+describe('case 10: one Challenge never reads another\'s key', () => {
+  it('Challenge #2 starts empty when only Challenge #1 has a saved session', () => {
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: ['infrastructure'] });
+
+    expect(loadSession(challenge02)).toBeNull();
+  });
+});
+
+// --- Case 11 -----------------------------------------------------------
+describe('case 11: mismatched challengeId is rejected even when Service ids overlap', () => {
+  it('discards an envelope whose challengeId does not match, despite passing every structural check', () => {
+    // Every serviceId here ('vpc', 'public-subnet') exists in BOTH catalogs,
+    // so checks 4-6 alone would accept this envelope for Challenge #2. Only
+    // the challengeId check (new for this feature) catches it.
+    localStorage.setItem(
+      storageKey(challenge02.id),
+      JSON.stringify({
+        version: SESSION_VERSION,
+        challengeId: challenge01.id, // wrong — this key is challenge02's
+        canvasTree: seededTree(),
+        revealedCategories: [],
+      }),
+    );
+
+    expect(loadSession(challenge02)).toBeNull();
+  });
+});
+
+// --- Case 14 -----------------------------------------------------------
+describe('case 14: a reload restores exactly as left', () => {
+  it('is exactly the round-trip guarantee from case 1, scoped per Challenge', () => {
+    // The end-to-end version of this (through App.tsx, across an actual
+    // reload) lives in tests/integration/session-isolation.test.tsx —
+    // covered here at the persistence-module level only.
+    const tree = seededTree();
+    saveSession(challenge01.id, { canvasTree: tree, revealedCategories: ['presentation-tier'] });
+
+    expect(loadSession(challenge01)).toEqual({
+      canvasTree: tree,
+      revealedCategories: ['presentation-tier'],
+    });
   });
 });

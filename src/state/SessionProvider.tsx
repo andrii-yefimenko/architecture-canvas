@@ -63,11 +63,11 @@ export function SessionProvider({
     }
     // The Evaluation is deliberately not persisted (FR-034); saveSession takes
     // only the two fields that are.
-    saveSession({
+    saveSession(challenge.id, {
       canvasTree: state.canvasTree,
       revealedCategories: state.revealedCategories,
     });
-  }, [state.canvasTree, state.revealedCategories]);
+  }, [state.canvasTree, state.revealedCategories, challenge.id]);
 
   const value = useMemo(() => ({ state, dispatch, challenge }), [state, challenge]);
 

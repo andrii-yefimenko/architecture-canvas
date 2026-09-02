@@ -1,24 +1,37 @@
 /**
- * Session persistence (FR-032, FR-033, FR-034, SC-005, SC-009).
+ * Session persistence.
  *
- * One key, one version number, all-or-nothing validation. The governing rule
- * is that persistence is a convenience: every failure mode degrades to
- * "start clean and carry on", never to an error the user has to deal with.
+ * One key per Challenge, one version number, all-or-nothing validation. The
+ * governing rule is that persistence is a convenience — and, since this
+ * feature, an in-progress-only convenience: it exists to survive an
+ * accidental refresh, not to let a user resume a Challenge they deliberately
+ * left (see `clearSession`). Every failure mode degrades to "start clean and
+ * carry on", never to an error the user has to deal with.
+ *
+ * Supersedes the single flat `architecture-canvas:session` key from
+ * specs/001-architecture-canvas-mvp/. See
+ * specs/002-multi-challenge-catalog/contracts/persistence.md.
  */
 
 import type { CanvasTree, CategoryId, Challenge, Node } from '@/domain/types';
 
 /**
- * One key for the whole session. Splitting across several keys multiplies the
- * partial-restore failure modes — a restored Canvas Tree paired with a lost
- * revealed-Category set is worse than a clean start.
+ * One key per Challenge, computed from its Challenge ID. Splitting
+ * persistence across *Challenges* doesn't reintroduce the partial-restore
+ * risk a single flat key avoided (see contracts/persistence.md) — each
+ * Challenge's key still holds one complete envelope, saved and loaded
+ * atomically; Challenges just no longer share an envelope they have no
+ * business sharing.
  */
-export const STORAGE_KEY = 'architecture-canvas:session';
+export function storageKey(challengeId: string): string {
+  return `architecture-canvas:session:${challengeId}`;
+}
 
 /**
  * Bump whenever the shape of `canvasTree` or `revealedCategories` changes.
- * The effect is to invalidate every stored session, which is the intended
- * behaviour at MVP stage and cheaper than migrating a few minutes of work.
+ * The effect is to invalidate every stored session, across every Challenge —
+ * the intended behaviour at this stage, and cheaper than migrating a few
+ * minutes of work.
  */
 export const SESSION_VERSION = 1;
 
@@ -36,7 +49,7 @@ function isValidNode(value: unknown, knownServiceIds: ReadonlySet<string>): valu
   if (!isRecord(value)) return false;
   if (typeof value['id'] !== 'string') return false;
   if (typeof value['serviceId'] !== 'string') return false;
-  // Resolving every serviceId is what makes editing challenge-01.ts safe:
+  // Resolving every serviceId is what makes editing a Challenge module safe:
   // renaming an id invalidates stored sessions rather than producing Nodes
   // that reference Services which no longer exist.
   if (!knownServiceIds.has(value['serviceId'])) return false;
@@ -45,17 +58,18 @@ function isValidNode(value: unknown, knownServiceIds: ReadonlySet<string>): valu
 }
 
 /**
- * Writes the session. Never throws.
+ * Writes the session under `challengeId`'s own key. Never throws.
  *
- * The Evaluation is deliberately excluded (FR-034): results describe a
- * submission the user is no longer looking at.
+ * The Evaluation is deliberately excluded: results describe a submission the
+ * user is no longer looking at.
  */
-export function saveSession(session: PersistedSession): void {
+export function saveSession(challengeId: string, session: PersistedSession): void {
   try {
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(challengeId),
       JSON.stringify({
         version: SESSION_VERSION,
+        challengeId,
         canvasTree: session.canvasTree,
         revealedCategories: session.revealedCategories,
       }),
@@ -63,24 +77,29 @@ export function saveSession(session: PersistedSession): void {
   } catch {
     // Storage can be unavailable (private browsing, disabled site data) or
     // full. Persistence is a convenience; its failure must not interrupt work
-    // or surface an error (SC-009).
+    // or surface an error.
   }
 }
 
 /**
- * Reads the session, or null if there is nothing valid to restore.
+ * Reads `challenge`'s session, or null if there is nothing valid to restore.
  *
- * Validation is all-or-nothing: any failed check discards the ENTIRE envelope
- * (FR-033). No partial restore, no repair, no migration — with one Challenge
- * and an MVP-stage schema, a clean start is cheaper and more predictable than
- * reconstruction.
+ * Validation is all-or-nothing: any failed check discards the ENTIRE
+ * envelope. No partial restore, no repair, no migration — a clean start is
+ * cheaper and more predictable than reconstruction.
+ *
+ * The `challengeId` check is what stops one Challenge's stored Canvas Tree
+ * from being silently accepted as another Challenge's session merely because
+ * their catalogs happen to share Service ids (e.g. `vpc`, `rds`, both used by
+ * Challenge #1 and Challenge #2) — the structural checks below alone are not
+ * sufficient once two Challenges' catalogs overlap.
  */
 export function loadSession(challenge: Challenge): PersistedSession | null {
   let raw: string | null;
   try {
-    raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(storageKey(challenge.id));
   } catch {
-    return null; // Storage unavailable — carry on without it (SC-009).
+    return null; // Storage unavailable — carry on without it.
   }
 
   if (raw === null) return null;
@@ -94,6 +113,7 @@ export function loadSession(challenge: Challenge): PersistedSession | null {
 
   if (!isRecord(parsed)) return null;
   if (parsed['version'] !== SESSION_VERSION) return null;
+  if (parsed['challengeId'] !== challenge.id) return null;
 
   const tree = parsed['canvasTree'];
   if (!isRecord(tree) || !Array.isArray(tree['roots'])) return null;

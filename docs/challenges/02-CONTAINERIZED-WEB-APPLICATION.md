@@ -97,8 +97,6 @@ VPC
 7. ECS Cluster must be inside Private Subnet.
 8. Fargate Task must be inside ECS Cluster.
 9. RDS must be inside Private Subnet.
-10. EC2 (Backend) must not exist.
-11. EC2 (Frontend) must not exist.
 
 ### Failure Example
 

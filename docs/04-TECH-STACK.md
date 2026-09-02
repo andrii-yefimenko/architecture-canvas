@@ -14,9 +14,10 @@ The MVP is a **frontend-only single-page application**. There is no backend serv
 | Styling | Tailwind CSS |
 | Drag and drop | dnd-kit |
 | State | `useReducer` + Context (no external state library) |
+| Routing | Hand-rolled `useRoute()` hook (`window.location.pathname` + `history.pushState`/`popstate`); no routing library |
 | Testing | Vitest + React Testing Library |
 | Container | Multi-stage Docker → static nginx on :3000 |
-| Challenge data | Typed TypeScript module |
+| Challenge data | Typed TypeScript modules, collected into a static Challenge Registry |
 
 ## Rationale
 
@@ -36,7 +37,11 @@ The MVP is a **frontend-only single-page application**. There is no backend serv
 
 **Multi-stage Docker → nginx** — builds the SPA in a Node stage and serves the static output from nginx. Small image, production-realistic, and honors the `docker compose up --build -d` → `localhost:3000` flow README already documents.
 
-**Typed TypeScript challenge module** — `challenges/challenge-01.ts` exports a typed `Challenge` object (description, visible and hidden requirements, service catalog, rules). Gives compile-time safety on rule → service-id references, and the shape is unchanged if challenges are later fetched as JSON.
+**Typed TypeScript challenge modules** — each Challenge (`challenges/challenge-01.ts`, `challenge-02.ts`, ...) exports a typed `Challenge` object (description, visible and hidden requirements, service catalog, rules). Gives compile-time safety on rule → service-id references, and the shape is unchanged if challenges are later fetched as JSON.
+
+**Hand-rolled routing** — the app has exactly two page shapes (Catalog Page at `/`, Task Page at `/challenge/:id`), so a small `useRoute()` hook reading `window.location.pathname` and navigating via `history.pushState`/`popstate` covers it without a dependency. Same reasoning as `useReducer` over an external state library: no external tool until the built-in ones stop being enough. React Router is the fallback if the page count grows enough to make route matching, nested layouts, or programmatic navigation hand-rolling error-prone.
+
+**Static Challenge Registry** — `src/challenges/index.ts` exports `challengeRegistry: readonly Challenge[]` (all Challenge modules eagerly imported) plus a pure `getChallengeById(id)` lookup. Framework-free, so it stays part of the domain-purity boundary. Eager import over lazy-loading because the bundle is small and there's no code-splitting need yet.
 
 ## Explicitly rejected
 

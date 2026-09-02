@@ -24,7 +24,15 @@ The nested hierarchy of Nodes. This is the evaluator's input, and the thing pers
 
 ## Challenge
 
-A single exercise: title, description, Visible Requirements, Hidden Requirements, its Service catalog, and its Rules. The MVP ships one Challenge.
+A single exercise: title, description, Visible Requirements, Hidden Requirements, its Service catalog, and its Rules. Every Challenge in the app is defined this way; see Challenge Registry for the full set.
+
+## Difficulty
+
+A short label on a Challenge — Beginner / Intermediate / Advanced — shown on its Catalog Page card. Set per Challenge; not derived or computed.
+
+## Tags
+
+Free-form labels on a Challenge (e.g. "AWS", "Containers") shown on its Catalog Page card, letting a user scan for one matching what they want to practice. Not used for filtering in the MVP.
 
 ## Challenge ID
 
@@ -50,7 +58,7 @@ A requirement shown to the user immediately, before any interaction.
 
 ## Hidden Requirement
 
-A requirement withheld until the user asks for it, simulating a client who has to be interviewed. Hidden Requirements are grouped into **Hidden Requirement Categories** — the four reveal groups (Infrastructure, Presentation Tier, Application Tier, Data Tier). The user reveals a whole Category at a time, never an individual Hidden Requirement.
+A requirement withheld until the user asks for it, simulating a client who has to be interviewed. Hidden Requirements are grouped into **Hidden Requirement Categories** — reveal groups defined per Challenge (Challenge #1 uses four: Infrastructure, Presentation Tier, Application Tier, Data Tier; other Challenges define their own set and naming). The user reveals a whole Category at a time, never an individual Hidden Requirement.
 
 ## Rule
 

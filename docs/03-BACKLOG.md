@@ -2,7 +2,12 @@
 
 Ideas deliberately deferred, kept so they aren't lost. Nothing here is rejected on merit unless noted; most are simply larger than the MVP should carry.
 
-See `docs/pages-ux/01-TASK-PAGE.md` for what was decided instead, and `MVP.md` for the MVP boundary.
+See `docs/pages-ux/01-TASK-PAGE.md` for what was decided instead, and `MVP.md` for the MVP boundary. `MVP.md` is frozen as the v0.1.0 record — this doc is also where scope statements that have since moved on from it now live.
+
+## Active scope beyond the frozen MVP
+
+**Multi-Challenge Catalog & Challenge #2 (v0.2.0, in progress).**
+`MVP.md` is frozen as the v0.1.0 record and still lists "Multiple challenges" under its Out of Scope — that was accurate for v0.1.0, not now. The next release adds the Challenge Registry, the Catalog Page (`docs/pages-ux/02-CATALOG-PAGE.md`), and Challenge #2 (`docs/challenges/02-CONTAINERIZED-WEB-APPLICATION.md`). This supersedes that line for `MVP.md` without editing the frozen document itself.
 
 ## Deferred during the UX review (2026-08-29)
 
@@ -37,7 +42,6 @@ Restated here for one consolidated view of everything not in the MVP.
 - **AI assistant / AI chat** simulating the client conversation behind hidden requirements — the core of the future-product vision in `PROJECT.md`.
 - **AI-driven architecture review** with best-practice suggestions and explanations of *why* a decision is wrong.
 - **Dynamic challenge generation.**
-- **Multiple challenges** (MVP ships Challenge #1 and Challenge #2 only).
 - **Multiple cloud providers** (MVP is AWS-only).
 - **Advanced architecture validation** beyond hardcoded parent-child rules.
 

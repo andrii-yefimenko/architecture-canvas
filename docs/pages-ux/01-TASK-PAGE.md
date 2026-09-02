@@ -11,7 +11,7 @@ Three vertical panels plus a Header, per `MVP.md`'s General Design:
 - **Requirements** (left) — Challenge title and description, Visible Requirements, Hidden Requirement Category reveal buttons, Score, Evaluation.
 - **Canvas** (center, largest) — the Canvas Tree the user builds.
 - **Services** (right) — the active Challenge's Service catalog, grouped by category.
-- **Header** — Submit button. On a multi-Challenge build, also a way back to the Catalog Page (see `02-CATALOG-PAGE.md`).
+- **Header** — Submit button, and a Back to Catalog control. Returning to the Catalog Page (see `02-CATALOG-PAGE.md`) clears the current Challenge's in-progress session — see Persistence.
 
 This layout is the template for *any* Challenge. A Challenge supplies its own title, description, requirements, categories, catalog, and Rules; the page mechanics below do not change.
 
@@ -66,8 +66,10 @@ The moment the Canvas is edited after a submit, results remain on screen behind 
 
 ## Persistence
 
-**Canvas Tree and revealed-Category state persist via `localStorage`**, restored on load, scoped per Challenge ID. Losing a half-built architecture to an accidental refresh is a real frustration and cheap to avoid. No backend involved.
+**Canvas Tree and revealed-Category state persist via `localStorage`, scoped per Challenge ID — but only as an in-progress safety net against an accidental refresh, not as a resumable save.** Losing a half-built architecture to a reload while actively working a Challenge is a real frustration and cheap to avoid; losing it because the user deliberately left the Challenge is not the problem this solves. No backend involved.
 
-**One versioned storage key per Challenge.** State is stored under a key holding `{ version, challengeId, canvasTree, revealedCategories }`. On load, a mismatched `version` discards the stored state and starts clean, so a change to the Node or Challenge schema can never crash the app on stale data.
+**One versioned storage key per Challenge, keyed by Challenge ID.** State is stored under `` `architecture-canvas:session:${challengeId}` ``, holding `{ version, challengeId, canvasTree, revealedCategories }`. The `challengeId` field is validated against the key on load rather than trusted implicitly — this is what stops one Challenge's stored Canvas Tree from being silently accepted as another Challenge's session merely because they happen to share Service ids (a real risk once two Challenges reuse names like `vpc` or `rds`). On load, a mismatched `version` discards the stored state and starts clean, so a change to the Node or Challenge schema can never crash the app on stale data.
+
+**Leaving a Challenge clears its session.** Navigating back to the Catalog Page via the Header's Back to Catalog control clears that Challenge's storage key. Returning to the same Challenge later starts from empty, the same as visiting it for the first time — there is no cross-visit resume (see the Catalog Page's Progress and state section). Persistence exists solely to survive the browser tab, not the user's decision to leave.
 
 **Node instance identity.** Each Node gets a `crypto.randomUUID()` id at drop time. Free-form dropping plus existential Rules means the Canvas may legitimately hold several Nodes of the same Service type, so move, delete, and re-parent operations all target the instance id rather than the Service type.

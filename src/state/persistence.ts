@@ -132,3 +132,18 @@ export function loadSession(challenge: Challenge): PersistedSession | null {
     revealedCategories: revealed as CategoryId[],
   };
 }
+
+/**
+ * Clears `challengeId`'s stored session outright — a delete, not a version
+ * bump, and not shared with any other Challenge's key. Called when the user
+ * leaves via the Header's Back to Catalog control (FR-014): persistence
+ * exists to survive an accidental refresh, not the user's decision to leave.
+ * Never throws.
+ */
+export function clearSession(challengeId: string): void {
+  try {
+    localStorage.removeItem(storageKey(challengeId));
+  } catch {
+    // Same reasoning as save/load: storage unavailability degrades silently.
+  }
+}

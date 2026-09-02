@@ -1,4 +1,5 @@
 import { evaluate } from '@/domain/evaluator';
+import { clearSession } from '@/state/persistence';
 import { useSession } from '@/state/session-context';
 
 /**
@@ -21,6 +22,9 @@ export function Header({ navigate }: { readonly navigate: (path: string) => void
   };
 
   const handleBackToCatalog = () => {
+    // Persistence exists only to survive an accidental refresh, not to let
+    // the user resume a Challenge they deliberately left (FR-014, FR-015).
+    clearSession(challenge.id);
     navigate('/');
   };
 

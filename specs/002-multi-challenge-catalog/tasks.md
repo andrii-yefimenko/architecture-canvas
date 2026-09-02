@@ -116,10 +116,10 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 ### Implementation for User Story 4
 
-- [ ] T021 [US4] Add `clearSession(challengeId: string): void` to `src/state/persistence.ts` per `contracts/persistence.md`'s Clear section (`localStorage.removeItem`, wrapped, never throws) (depends on T017)
-- [ ] T022 [P] [US4] Add cases 12 and 13 from `contracts/persistence.md` to `src/state/persistence.test.ts` (Back to Catalog clears the key; restarting after a clear is identical to a first visit) (depends on T021)
-- [ ] T023 [US4] Wire `src/components/Header.tsx`'s Back to Catalog handler to also call `clearSession(challenge.id)` alongside the existing `navigate('/')` (FR-014) (depends on T012, T021)
-- [ ] T024 [US4] Write `tests/integration/clear-on-leave.test.tsx` covering spec Acceptance Scenarios 1–2 (depends on T023)
+- [x] T021 [US4] Add `clearSession(challengeId: string): void` to `src/state/persistence.ts` per `contracts/persistence.md`'s Clear section (`localStorage.removeItem`, wrapped, never throws) (depends on T017)
+- [x] T022 [P] [US4] Add cases 12 and 13 from `contracts/persistence.md` to `src/state/persistence.test.ts` (Back to Catalog clears the key; restarting after a clear is identical to a first visit) (depends on T021)
+- [x] T023 [US4] Wire `src/components/Header.tsx`'s Back to Catalog handler to also call `clearSession(challenge.id)` alongside the existing `navigate('/')` (FR-014) (depends on T012, T021)
+- [x] T024 [US4] Write `tests/integration/clear-on-leave.test.tsx` covering spec Acceptance Scenarios 1–2 (depends on T023)
 
 **Checkpoint**: All four user stories are independently functional. This is the complete feature.
 

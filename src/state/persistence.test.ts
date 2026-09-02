@@ -13,7 +13,7 @@ import { challenge01 } from '@/challenges/challenge-01';
 import { challenge02 } from '@/challenges/challenge-02';
 import { addNode, countNodes, emptyTree } from '@/domain/canvas-tree';
 import type { CanvasTree } from '@/domain/types';
-import { storageKey, SESSION_VERSION, loadSession, saveSession } from './persistence';
+import { storageKey, SESSION_VERSION, loadSession, saveSession, clearSession } from './persistence';
 
 function seededTree(): CanvasTree {
   let tree = emptyTree();
@@ -278,6 +278,53 @@ describe('case 11: mismatched challengeId is rejected even when Service ids over
     );
 
     expect(loadSession(challenge02)).toBeNull();
+  });
+});
+
+// --- Case 12 -------------------------------------------------------------
+describe('case 12: clearSession removes the key outright', () => {
+  it('leaves nothing behind for that Challenge', () => {
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: ['infrastructure'] });
+    expect(loadSession(challenge01)).not.toBeNull();
+
+    clearSession(challenge01.id);
+
+    expect(localStorage.getItem(storageKey(challenge01.id))).toBeNull();
+    expect(loadSession(challenge01)).toBeNull();
+  });
+
+  it('does not touch a different Challenge\'s key', () => {
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: [] });
+    saveSession(challenge02.id, { canvasTree: seededTree(), revealedCategories: [] });
+
+    clearSession(challenge01.id);
+
+    expect(loadSession(challenge01)).toBeNull();
+    expect(loadSession(challenge02)).not.toBeNull();
+  });
+
+  it('never throws when storage is unavailable', () => {
+    withStorage(
+      {
+        removeItem: () => {
+          throw new DOMException('access denied', 'SecurityError');
+        },
+      },
+      () => {
+        expect(() => clearSession(challenge01.id)).not.toThrow();
+      },
+    );
+  });
+});
+
+// --- Case 13 -------------------------------------------------------------
+describe('case 13: restarting after a clear is identical to a first visit', () => {
+  it('has no Canvas Tree or revealed Categories to restore', () => {
+    saveSession(challenge01.id, { canvasTree: seededTree(), revealedCategories: ['infrastructure'] });
+    clearSession(challenge01.id);
+
+    const restored = loadSession(challenge01);
+    expect(restored).toBeNull();
   });
 });
 

@@ -129,10 +129,12 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 **Purpose**: Verification and documentation, no new behavior.
 
-- [ ] T025 [P] Update `README.md`'s "How it works" (mention starting from the Catalog Page) and "Project Structure" (add `src/pages/`, `src/routing/`, `src/components/catalog/`) sections
-- [ ] T026 Run `npm run lint` and `npm run build`; confirm zero errors and that `tests/architecture/domain-purity.test.ts` and `tests/architecture/terminology.test.ts` still pass unmodified, verifying the Constitution Check's claim that `src/domain/` was untouched
-- [ ] T027 Run `docker compose up --build -d`; confirm the Catalog Page serves at `localhost:3000/` and both Challenges are reachable and playable, per `quickstart.md`'s Definition of Done (depends on T026)
+- [x] T025 [P] Update `README.md`'s "How it works" (mention starting from the Catalog Page) and "Project Structure" (add `src/pages/`, `src/routing/`, `src/components/catalog/`) sections
+- [x] T026 Run `npm run lint` and `npm run build`; confirm zero errors and that `tests/architecture/domain-purity.test.ts` and `tests/architecture/terminology.test.ts` still pass unmodified — 265/265 tests, lint and typecheck clean. **Correction to the Constitution Check's claim**: `src/domain/evaluator.ts`, `canvas-tree.ts`, and `score.ts` (`git diff 7aa8f40 --` on those three files is empty) are genuinely untouched, but `src/domain/types.ts` *was* additively extended in T001 (`difficulty`/`tags`/`shortDescription` on `Challenge`) — still framework-free, still passes both guard tests, but "untouched" overstated it; "the evaluation engine is untouched" is the accurate claim.
+- [x] T027 Run `docker compose up --build -d`; confirm the Catalog Page serves at `localhost:3000/` and both Challenges are reachable and playable, per `quickstart.md`'s Definition of Done (depends on T026)
 - [ ] T028 Manually execute `quickstart.md`'s 4 validation scenarios and edge-case table, including the deep-link and two-tabs cases that can't be exercised in jsdom (depends on T027)
+
+**T028 status**: attempted with a real headless browser (Playwright), not left untried. Chromium's shared-library dependencies (`libnspr4`, `libnss3`, and others) require `sudo apt-get install`, which this environment has no non-interactive access to — confirmed via `npx playwright install-deps chromium --dry-run`. The user chose to defer this to a manual pass rather than grant sudo access. What **is** verified: the container is healthy, `curl` confirms both `/` and a deep-linked `/challenge/challenge-02` return the SPA shell with no server-side change needed (the nginx fallback added in Phase 1 of the MVP already covers it), and all 265 automated tests — including integration tests that render the real React component tree via jsdom and assert on rendered content, navigation, and persisted state — pass. The literal pointer-driven click-through, real CSS layout, and the two-tabs scenario remain unverified in an actual browser, the same class of gap `MVP.md`'s Evidence section already accepted for the original drag gesture.
 
 ---
 

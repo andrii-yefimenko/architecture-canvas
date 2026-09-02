@@ -6,13 +6,14 @@ Most cloud training hands you a finished design and asks you to click through it
 
 ## How it works
 
-1. **Read the brief.** You get a business situation and a handful of visible requirements — not the full picture.
-2. **Ask the client.** The rest of the requirements are hidden behind four topic areas. Reveal them a topic at a time, the way you would interview a real stakeholder. There is no score penalty for asking.
-3. **Design.** Drag Services onto the Canvas and nest them to express your architecture. Nothing is blocked — you can place anything anywhere, including arrangements that make no sense.
-4. **Submit.** Your Canvas Tree is checked against the challenge's Rules. You get a Score, a pass/fail line for **every** requirement, and a specific recommendation for each failure.
-5. **Revise.** Fix what failed and submit again, as many times as you like. Your previous results stay on screen while you work.
+1. **Pick a Challenge.** The Catalog lists every exercise available — title, difficulty, and a one-line summary of what it's testing.
+2. **Read the brief.** You get a business situation and a handful of visible requirements — not the full picture.
+3. **Ask the client.** The rest of the requirements are hidden behind a handful of topic areas specific to that Challenge. Reveal them a topic at a time, the way you would interview a real stakeholder. There is no score penalty for asking.
+4. **Design.** Drag Services onto the Canvas and nest them to express your architecture. Nothing is blocked — you can place anything anywhere, including arrangements that make no sense.
+5. **Submit.** Your Canvas Tree is checked against the challenge's Rules. You get a Score, a pass/fail line for **every** requirement, and a specific recommendation for each failure.
+6. **Revise.** Fix what failed and submit again, as many times as you like. Your previous results stay on screen while you work.
 
-Your work is saved in the browser, so a refresh does not lose it.
+Your in-progress work is saved in the browser per Challenge, so an accidental refresh doesn't lose it. Leaving via **Back to Catalog** clears it on purpose — persistence is a safety net, not a resume-later feature.
 
 ## 🛠 Tech Stack & Architecture Overview
 
@@ -84,9 +85,11 @@ src/
 │   ├── canvas-tree.ts  # Tree operations, including the cycle guard
 │   ├── evaluator.ts    # evaluate(canvasTree, rules) -> Evaluation
 │   └── score.ts
-├── challenges/      # Authored challenge data (also framework-free)
-├── state/           # Reducer, Context provider, persistence
-└── components/      # React: header, requirements, canvas, services
+├── challenges/      # Authored challenge data + the Challenge Registry (also framework-free)
+├── routing/         # useRoute() — the app's two-route client-side router
+├── state/           # Reducer, Context provider, per-Challenge persistence
+├── pages/           # CatalogPage, TaskPage
+└── components/      # React: header, catalog, requirements, canvas, services
 
 tests/
 ├── architecture/    # Guards: domain purity, terminology, keyboard access
@@ -103,12 +106,13 @@ tests/
 | [`docs/01-RESEARCH.md`](docs/01-RESEARCH.md) | Target audience, positioning, go-to-market |
 | [`docs/pages-ux/01-TASK-PAGE.md`](docs/pages-ux/01-TASK-PAGE.md) | Task Page — settled UX and evaluation mechanics |
 | [`docs/pages-ux/02-CATALOG-PAGE.md`](docs/pages-ux/02-CATALOG-PAGE.md) | Catalog Page — challenge list UX |
-| [`docs/challenges/`](docs/challenges/) | Per-challenge specs (template + Challenge #1) |
-| [`docs/03-BACKLOG.md`](docs/03-BACKLOG.md) | Deferred / post-MVP ideas |
+| [`docs/challenges/`](docs/challenges/) | Per-challenge specs (template + Challenges #1 and #2) |
+| [`docs/03-BACKLOG.md`](docs/03-BACKLOG.md) | Deferred / post-MVP ideas, and current scope beyond the frozen MVP |
 | [`docs/04-TECH-STACK.md`](docs/04-TECH-STACK.md) | Technical stack decisions and rationale |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
-| [`specs/001-architecture-canvas-mvp/`](specs/001-architecture-canvas-mvp/) | Specification, plan, contracts, and task breakdown |
+| [`specs/001-architecture-canvas-mvp/`](specs/001-architecture-canvas-mvp/) | v0.1.0 MVP: specification, plan, contracts, and task breakdown (frozen) |
+| [`specs/002-multi-challenge-catalog/`](specs/002-multi-challenge-catalog/) | Multi-Challenge Catalog & Challenge #2: specification, plan, contracts, and task breakdown |
 
 ## Scope
 
-This MVP ships **one** challenge and no AI. The AI client chat and AI architecture reviewer described in [`PROJECT.md`](PROJECT.md) are future work, along with multiple challenges and multiple cloud providers — see [`docs/03-BACKLOG.md`](docs/03-BACKLOG.md).
+Two Challenges ship today — **Simple Web Application** and **Containerized Microservice** — browsable from the Catalog. There's still no AI: the client chat and AI architecture reviewer described in [`PROJECT.md`](PROJECT.md) remain future work, along with multiple cloud providers — see [`docs/03-BACKLOG.md`](docs/03-BACKLOG.md). `MVP.md` is kept as the frozen record of the original single-Challenge v0.1.0 release.

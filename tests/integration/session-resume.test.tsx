@@ -16,6 +16,13 @@ import type { CanvasTree, NodeId } from '@/domain/types';
 import { STORAGE_KEY, SESSION_VERSION, loadSession } from '@/state/persistence';
 import { initialSessionState, type SessionState } from '@/state/session-reducer';
 
+// Predates routing: <App /> used to render Challenge #1's Task Page directly.
+// '/' now renders the Catalog Page instead, so every test here points the
+// route at Challenge #1's Task Page explicitly.
+beforeEach(() => {
+  window.history.pushState(null, '', '/challenge/challenge-01');
+});
+
 function seededState(): SessionState {
   let tree: CanvasTree = emptyTree();
   const add = (serviceId: string, parentId: NodeId | null = null): NodeId => {

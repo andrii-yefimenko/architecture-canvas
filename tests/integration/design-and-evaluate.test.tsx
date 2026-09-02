@@ -17,6 +17,13 @@ import { addNode, emptyTree } from '@/domain/canvas-tree';
 import { evaluate } from '@/domain/evaluator';
 import type { CanvasTree, NodeId } from '@/domain/types';
 
+// Predates routing: <App /> used to render Challenge #1's Task Page directly.
+// '/' now renders the Catalog Page instead, so every test here points the
+// route at Challenge #1's Task Page explicitly.
+beforeEach(() => {
+  window.history.pushState(null, '', '/challenge/challenge-01');
+});
+
 function buildRequiredArchitecture(): CanvasTree {
   let tree: CanvasTree = emptyTree();
   const add = (serviceId: string, parentId: NodeId | null = null): NodeId => {

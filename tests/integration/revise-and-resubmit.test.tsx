@@ -21,6 +21,13 @@ import { evaluate } from '@/domain/evaluator';
 import type { CanvasTree, NodeId } from '@/domain/types';
 import { initialSessionState, sessionReducer, type SessionState } from '@/state/session-reducer';
 
+// Predates routing: <App /> used to render Challenge #1's Task Page directly.
+// '/' now renders the Catalog Page instead, so every test here points the
+// route at Challenge #1's Task Page explicitly.
+beforeEach(() => {
+  window.history.pushState(null, '', '/challenge/challenge-01');
+});
+
 /** VPC > [Public Subnet > [EC2 Backend — wrong tier], Private Subnet]. */
 function flawedState(): SessionState {
   let tree: CanvasTree = emptyTree();

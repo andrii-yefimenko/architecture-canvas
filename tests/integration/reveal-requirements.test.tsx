@@ -14,6 +14,13 @@ import { evaluate } from '@/domain/evaluator';
 import { addNode, emptyTree } from '@/domain/canvas-tree';
 import { initialSessionState, sessionReducer } from '@/state/session-reducer';
 
+// Predates routing: <App /> used to render Challenge #1's Task Page directly.
+// '/' now renders the Catalog Page instead, so every test here points the
+// route at Challenge #1's Task Page explicitly.
+beforeEach(() => {
+  window.history.pushState(null, '', '/challenge/challenge-01');
+});
+
 /**
  * Category names contain regex metacharacters — "Presentation Tier (Web /
  * Frontend)" — so they must be escaped before use as a name matcher.

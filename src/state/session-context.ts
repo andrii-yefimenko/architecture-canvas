@@ -5,7 +5,7 @@ import type { SessionAction, SessionState } from './session-reducer';
 export interface SessionContextValue {
   readonly state: SessionState;
   readonly dispatch: Dispatch<SessionAction>;
-  /** The active Challenge. Single-Challenge MVP, so this is constant. */
+  /** The active Challenge, selected by the current route (`TaskPage`'s `challenge` prop). */
   readonly challenge: Challenge;
 }
 

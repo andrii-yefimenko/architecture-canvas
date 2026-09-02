@@ -61,15 +61,17 @@ Single-project frontend SPA, unchanged from spec 001: `src/`, `tests/` at reposi
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Create `src/components/catalog/ChallengeCard.tsx` — renders a Challenge's title, Difficulty, short description, and Tags, plus a Start Challenge control that calls `navigate` from `useRoute()` (FR-003, FR-004)
-- [ ] T010 [US1] Create `src/pages/CatalogPage.tsx` — renders one `ChallengeCard` per entry in `challengeRegistry`, in Registry order (FR-002) (depends on T009)
-- [ ] T011 [P] [US1] Extract the `Workspace` function currently inside `src/App.tsx` into `src/pages/TaskPage.tsx`, changing its signature to accept a `challenge: Challenge` prop that it passes to `SessionProvider`, instead of relying on `SessionProvider`'s `challenge01` default
-- [ ] T012 [P] [US1] Add a "Back to Catalog" control to `src/components/Header.tsx` that calls `navigate('/')` from `useRoute()` (FR-007) — session-clearing behavior is added later, in Phase 6
-- [ ] T013 [US1] Rewrite `src/App.tsx` as a router switch: call `useRoute()`; for `{ page: 'catalog' }` render `CatalogPage`; for `{ page: 'task', challengeId }` resolve the Challenge via `getChallengeById` and render `TaskPage` with it on a hit, or `CatalogPage` on a miss (FR-005, FR-006) (depends on T007, T010, T011, T005)
-- [ ] T014 [P] [US1] Update the now-inaccurate "Single-Challenge MVP, so this is constant" comment on the `challenge` field in `src/state/session-context.ts` to describe per-route Challenge selection instead
-- [ ] T015 [US1] Write `tests/integration/catalog-and-launch.test.tsx` covering spec Acceptance Scenarios 1–5: card rendering in Registry order, card contents, launch navigation to the correct Task Page, Back to Catalog navigation, and the unknown-Challenge-ID fallback to the Catalog Page (depends on T013)
+- [x] T009 [P] [US1] Create `src/components/catalog/ChallengeCard.tsx` — renders a Challenge's title, Difficulty, short description, and Tags, plus a Start Challenge control that calls `navigate` from `useRoute()` (FR-003, FR-004)
+- [x] T010 [US1] Create `src/pages/CatalogPage.tsx` — renders one `ChallengeCard` per entry in `challengeRegistry`, in Registry order (FR-002) (depends on T009)
+- [x] T011 [P] [US1] Extract the `Workspace` function currently inside `src/App.tsx` into `src/pages/TaskPage.tsx`, changing its signature to accept a `challenge: Challenge` prop that it passes to `SessionProvider`, instead of relying on `SessionProvider`'s `challenge01` default
+- [x] T012 [P] [US1] Add a "Back to Catalog" control to `src/components/Header.tsx` that calls `navigate('/')` from `useRoute()` (FR-007) — session-clearing behavior is added later, in Phase 6
+- [x] T013 [US1] Rewrite `src/App.tsx` as a router switch: call `useRoute()`; for `{ page: 'catalog' }` render `CatalogPage`; for `{ page: 'task', challengeId }` resolve the Challenge via `getChallengeById` and render `TaskPage` with it on a hit, or `CatalogPage` on a miss (FR-005, FR-006) (depends on T007, T010, T011, T005)
+- [x] T014 [P] [US1] Update the now-inaccurate "Single-Challenge MVP, so this is constant" comment on the `challenge` field in `src/state/session-context.ts` to describe per-route Challenge selection instead
+- [x] T015 [US1] Write `tests/integration/catalog-and-launch.test.tsx` covering spec Acceptance Scenarios 1–5: card rendering in Registry order, card contents, launch navigation to the correct Task Page, Back to Catalog navigation, and the unknown-Challenge-ID fallback to the Catalog Page (depends on T013)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — the Catalog Page, both Challenges, and navigation between them all work.
+
+**Collateral fix, not originally listed as a task**: `App.tsx` becoming a router means `/` now shows the Catalog Page instead of Challenge #1's Task Page — every spec-001 integration test that rendered bare `<App />` expecting the Task Page directly (`app-shell`, `session-resume`, `reveal-requirements`, `revise-and-resubmit`, `edge-cases`, `design-and-evaluate`, plus `tests/architecture/keyboard-access.test.tsx`) needed a `beforeEach` pointing the route at `/challenge/challenge-01` first. No test *behavior* changed, only what URL it runs against. 246/246 tests pass after the fix (up from 240).
 
 ---
 

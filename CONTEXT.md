@@ -16,9 +16,27 @@ An instance of a Service placed on the Canvas. A Node has its own identity, a pa
 
 *Avoid:* "block", "element", "item".
 
+## Frame
+
+The on-canvas rendering of a Node as a resizable container, auto-sized to enclose its children. Any Node with at least one child renders as a Frame, regardless of its Service's default appearance — an EC2 that gains a child is drawn the same way a VPC is.
+
+*Avoid:* "container" (reserved for this domain's actual AWS/Docker sense — ECS, Fargate, "Containerized Web Application" — never for this rendering concept), "block".
+
+## Card
+
+The on-canvas rendering of a Node as a compact, fixed-size square — the default appearance for a Service like EC2, RDS, or ALB. Applies only while the Node has no children; a Card that gains a child becomes a Frame.
+
+*Avoid:* "block".
+
+## Layout
+
+A Node's position and size on the Canvas — `{x, y, width, height}`. Kept separately from the Canvas Tree: Layout is presentation data no Rule ever evaluates, but it's persisted alongside the Canvas Tree per Challenge.
+
+*Avoid:* "position" (implies x/y only, omits size), "placement".
+
 ## Canvas Tree
 
-The nested hierarchy of Nodes. This is the evaluator's input, and the thing persisted between sessions. Relationships in the Canvas Tree are strictly parent-child; there are no edges or connections.
+The nested hierarchy of Nodes. This is the evaluator's input. Persisted between sessions alongside each Node's Layout, though Layout itself carries no weight in Evaluation. Relationships in the Canvas Tree are strictly parent-child; there are no edges or connections.
 
 *Avoid:* "diagram", "graph", "architecture" (when meaning the data structure).
 

@@ -35,6 +35,18 @@ Show progression over multiple submissions rather than only the latest result.
 **Unified scoring logic across challenges.**
 The current formula (100 / rule count) makes scores incomparable between challenges, because rule granularity varies. In Challenge #1, three "must be present" rules are strictly implied by their placement rules (7→6, 10→9, 11→8), so correctly placing the frontend is worth 18.2 points while correctly placing the Internet Gateway is worth 9.1. A future scheme should normalize weighting — by rule category, by architectural significance, or by deduplicating implied rules — so a 75 on one challenge means roughly what a 75 means on another. Accepted as-is for the MVP, where there is only one challenge and nothing to compare against.
 
+## Deferred during the v0.3.0 Canvas Grill session (2026-09-08)
+
+Scoped out of [ADR-0002](adr/0002-2d-spatial-canvas-blocks.md)'s 2D spatial canvas redesign, kept for later.
+
+**Pan & zoom for the Canvas, with a minimap.** Closer to Application Composer's full spatial workspace, but adds viewport-transform math and zoom-aware pointer-to-canvas coordinate translation. v0.3.0 stays a fixed viewport.
+
+**Manual Frame resize.** Frames auto-size to their children in v0.3.0; letting a user drag a resize handle to set explicit bounds is a separate interaction (drag affordance, overflow handling when a resize shrinks below the contents) left for later.
+
+**Full keyboard-driven fine-grained repositioning.** v0.3.0 keeps keyboard support coarse — select a Service and assign it into a Frame at a default position. Arrow-key nudging or similar for pixel-level keyboard placement in a free-form 2D layout is deferred.
+
+**Collision / overlap-avoidance on the Canvas.** v0.3.0 allows sibling Cards to overlap (grid-snap only, no auto-arrange or reject-on-overlap). Actively avoiding or resolving overlapping placements is closer to a polished diagramming tool and out of scope for the first spatial-canvas pass.
+
 ## Already out of scope per `MVP.md`
 
 Restated here for one consolidated view of everything not in the MVP.

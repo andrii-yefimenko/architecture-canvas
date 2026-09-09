@@ -10,10 +10,12 @@
  *
  * Supersedes the single flat `architecture-canvas:session` key from
  * specs/001-architecture-canvas-mvp/. See
+ * See this feature's persistence contract, which supersedes
  * specs/002-multi-challenge-catalog/contracts/persistence.md.
  */
 
-import type { CanvasTree, CategoryId, Challenge, Node } from '@/domain/types';
+import type { CanvasTree, CategoryId, Challenge, Node, NodeId } from '@/domain/types';
+import type { Layout, LayoutMap } from './layout';
 
 /**
  * One key per Challenge, computed from its Challenge ID. Splitting
@@ -28,16 +30,50 @@ export function storageKey(challengeId: string): string {
 }
 
 /**
- * Bump whenever the shape of `canvasTree` or `revealedCategories` changes.
- * The effect is to invalidate every stored session, across every Challenge —
- * the intended behaviour at this stage, and cheaper than migrating a few
- * minutes of work.
+ * Bump whenever the shape of `canvasTree`, `revealedCategories`, or `layout`
+ * changes. The effect is to invalidate every stored session, across every
+ * Challenge — the intended behaviour at this stage, and cheaper than
+ * migrating a few minutes of work.
+ *
+ * 2: added `layout` (see this feature's persistence contract).
  */
-export const SESSION_VERSION = 1;
+export const SESSION_VERSION = 2;
 
 export interface PersistedSession {
   readonly canvasTree: CanvasTree;
   readonly revealedCategories: readonly CategoryId[];
+  readonly layout: LayoutMap;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * A plain object of `{x, y}` pairs. Every key present must resolve to a Node
+ * actually in the tree — a stale entry for a deleted or unknown Node
+ * invalidates the whole envelope, the same as an unresolvable `serviceId`
+ * does for `canvasTree`. Completeness is NOT required: a Node with no entry
+ * yet is valid (it renders at the origin — see CanvasNode.tsx) — the same
+ * tolerance the reducer and renderer already have, since not every
+ * `canvasTree` in this codebase's tests is built through the position-carrying
+ * `ADD_NODE` action.
+ */
+function isValidLayout(value: unknown, knownNodeIds: ReadonlySet<NodeId>): value is Record<NodeId, Layout> {
+  if (!isRecord(value)) return false;
+  return Object.entries(value).every(([id, entry]) => {
+    if (!knownNodeIds.has(id)) return false;
+    return isRecord(entry) && isFiniteNumber(entry['x']) && isFiniteNumber(entry['y']);
+  });
+}
+
+/** Every NodeId in a validated tree, depth-first. Mirrors src/domain/canvas-tree.ts's subtreeIds, but over plain JSON. */
+function collectNodeIds(nodes: readonly Node[], out: Set<NodeId> = new Set()): Set<NodeId> {
+  for (const node of nodes) {
+    out.add(node.id);
+    collectNodeIds(node.children, out);
+  }
+  return out;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -72,6 +108,7 @@ export function saveSession(challengeId: string, session: PersistedSession): voi
         challengeId,
         canvasTree: session.canvasTree,
         revealedCategories: session.revealedCategories,
+        layout: session.layout,
       }),
     );
   } catch {
@@ -127,9 +164,17 @@ export function loadSession(challenge: Challenge): PersistedSession | null {
   const knownCategoryIds = new Set(challenge.hiddenRequirementCategories.map((c) => c.id));
   if (!revealed.every((id) => typeof id === 'string' && knownCategoryIds.has(id))) return null;
 
+  // Every key in `layout` must be exactly a NodeId present in the tree above
+  // — no missing entries, no stale ones left over from a deleted Node. The
+  // same all-or-nothing rule the other checks already apply.
+  const knownNodeIds = collectNodeIds(tree['roots'] as Node[]);
+  const layout = parsed['layout'];
+  if (!isValidLayout(layout, knownNodeIds)) return null;
+
   return {
     canvasTree: { roots: tree['roots'] as Node[] },
     revealedCategories: revealed as CategoryId[],
+    layout: layout as Record<NodeId, Layout>,
   };
 }
 

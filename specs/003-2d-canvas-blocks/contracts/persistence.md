@@ -39,11 +39,11 @@ Runs when a Task Page mounts for a given Challenge. The envelope is accepted onl
 3. `challengeId` in the envelope equals the `challengeId` the key was computed from (unchanged from spec 002).
 4. `canvasTree` is structurally valid — `roots` is an array, every Node has `id`, `serviceId`, and an array `children`; every `serviceId` resolves against this Challenge's catalog (unchanged from spec 002).
 5. Every id in `revealedCategories` resolves against this Challenge's Categories (unchanged from spec 002).
-6. **`layout` is a plain object whose keys are exactly the set of `NodeId`s present in the (already-validated) `canvasTree` — no missing entries, no extras — and every value is a record of two finite numbers, `x` and `y`.** (new)
+6. **`layout` is a plain object whose keys each resolve to a `NodeId` actually present in the (already-validated) `canvasTree`, with every value a record of two finite numbers, `x` and `y`.** A stale entry for a Node id that no longer exists invalidates the whole envelope, the same as an unresolvable `serviceId` does for `canvasTree`. **Completeness is not required** — a Node with no `layout` entry is valid; it renders at the origin (`CanvasNode.tsx`'s fallback), the same tolerance the reducer already has for a `canvasTree` built outside the position-carrying `ADD_NODE` action (e.g. every test fixture in this codebase that seeds a tree via `addNode` directly rather than simulating a drag).
 
 If any check fails, the entire envelope is discarded and that Challenge starts empty. No partial restore, no repair, no migration, no cross-Challenge fallback — unchanged philosophy from specs 001/002.
 
-Check 6 exists for the same reason check 4 already resolves every `serviceId`: it's what makes renaming or restructuring Nodes safe across a code change. Without it, a stale `layout` entry for a Node id that no longer exists (or a missing entry for one that does) would either be silently dropped or leave a Node with no known position — both worse than a clean discard.
+Check 6 exists for the same reason check 4 already resolves every `serviceId`: it's what makes renaming or restructuring Nodes safe across a code change, without over-constraining what a valid `layout` looks like — an incomplete one is normal, not corrupt.
 
 ## Clear (unchanged)
 
@@ -68,7 +68,7 @@ All fourteen from `specs/002-multi-challenge-catalog/contracts/persistence.md`, 
 | # | Scenario | Expected |
 |---|---|---|
 | 15 | Save then load, with several Nodes at distinct positions | Every Node's `layout` entry restored identically (SC-003) |
-| 16 | Stored envelope's `layout` is missing an entry for a Node present in `canvasTree` | Discarded — check 6 fails even though checks 1–5 would have passed |
+| 16 | Stored envelope's `layout` is missing an entry for a Node present in `canvasTree` | Accepted — completeness is not required; the missing Node renders at the origin |
 | 17 | Stored envelope's `layout` has an entry for a `NodeId` not present in `canvasTree` (e.g. a deleted Node's stale position) | Discarded — check 6 fails |
 | 18 | Stored envelope has `version: 1` (pre-feature shape, no `layout` field) | Discarded — check 2 fails, matching the existing version-mismatch behavior |
 | 19 | Saved envelope inspected | Contains no Evaluation (FR-034, unchanged) |

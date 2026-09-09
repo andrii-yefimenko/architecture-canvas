@@ -136,4 +136,15 @@ describe('Challenge #2 shape, per docs/challenges/02-CONTAINERIZED-WEB-APPLICATI
       expect(service.name.trim().length).toBeGreaterThan(0);
     }
   });
+
+  it('gives every Service a renderKind (contracts/challenge.md rule 9)', () => {
+    for (const service of challenge02.services) {
+      expect(['frame', 'card']).toContain(service.renderKind);
+    }
+  });
+
+  it('assigns frame to the ECS Cluster boundary, alongside VPC/subnets', () => {
+    const frames = challenge02.services.filter((s) => s.renderKind === 'frame').map((s) => s.id);
+    expect(frames.sort()).toEqual(['ecs-cluster', 'private-subnet', 'public-subnet', 'vpc'].sort());
+  });
 });

@@ -65,6 +65,20 @@ export function hasChildren(tree: CanvasTree, nodeId: NodeId): boolean {
   return (findNode(tree, nodeId)?.children.length ?? 0) > 0;
 }
 
+/**
+ * Every NodeId in `nodeId`'s subtree, `nodeId` itself included. Depth-first,
+ * order not significant.
+ *
+ * Exists so a caller can capture "what's about to be removed" from the
+ * current tree before `removeNode` runs — after removal there's nothing left
+ * to walk. Carries no knowledge of anything beyond the tree itself.
+ */
+export function subtreeIds(tree: CanvasTree, nodeId: NodeId): NodeId[] {
+  const node = findNode(tree, nodeId);
+  if (!node) return [];
+  return [...walk({ roots: [node] })].map((n) => n.id);
+}
+
 /** True when `candidateId` sits anywhere beneath `ancestorId`. Backs the cycle guard. */
 export function isDescendant(
   tree: CanvasTree,

@@ -9,22 +9,31 @@ const anEvaluation: Evaluation = {
   score: 100,
 };
 
+const ORIGIN = { x: 0, y: 0 };
+
 /** Root VPC containing a Public Subnet which contains an EC2 Frontend. */
 function seeded() {
   let state = sessionReducer(initialSessionState(), {
     type: 'ADD_NODE',
     serviceId: 'vpc',
     parentId: null,
+    position: { x: 10, y: 20 },
   });
   const vpcId = state.canvasTree.roots[0]!.id;
 
-  state = sessionReducer(state, { type: 'ADD_NODE', serviceId: 'public-subnet', parentId: vpcId });
+  state = sessionReducer(state, {
+    type: 'ADD_NODE',
+    serviceId: 'public-subnet',
+    parentId: vpcId,
+    position: { x: 30, y: 40 },
+  });
   const publicId = findNode(state.canvasTree, vpcId)!.children[0]!.id;
 
   state = sessionReducer(state, {
     type: 'ADD_NODE',
     serviceId: 'ec2-frontend',
     parentId: publicId,
+    position: { x: 50, y: 60 },
   });
   const frontendId = findNode(state.canvasTree, publicId)!.children[0]!.id;
 
@@ -38,13 +47,14 @@ function withEvaluation(): SessionState {
 }
 
 describe('initialSessionState', () => {
-  it('starts empty with no Evaluation', () => {
+  it('starts empty with no Evaluation and no Layout', () => {
     const state = initialSessionState();
     expect(state.canvasTree.roots).toEqual([]);
     expect(state.revealedCategories).toEqual([]);
     expect(state.evaluation).toBeNull();
     expect(state.evaluationStale).toBe(false);
     expect(state.pendingDeletion).toBeNull();
+    expect(state.layout).toEqual({});
   });
 });
 
@@ -54,6 +64,7 @@ describe('ADD_NODE', () => {
       type: 'ADD_NODE',
       serviceId: 'vpc',
       parentId: null,
+      position: ORIGIN,
     });
     expect(state.canvasTree.roots).toHaveLength(1);
   });
@@ -69,8 +80,31 @@ describe('ADD_NODE', () => {
       type: 'ADD_NODE',
       serviceId: 'vpc',
       parentId: 'missing',
+      position: ORIGIN,
     });
     expect(after).toBe(before);
+  });
+
+  it('records the new Node at its dispatched position (contracts/canvas-layout.md)', () => {
+    const state = sessionReducer(initialSessionState(), {
+      type: 'ADD_NODE',
+      serviceId: 'vpc',
+      parentId: null,
+      position: { x: 42, y: 84 },
+    });
+    const nodeId = state.canvasTree.roots[0]!.id;
+    expect(state.layout[nodeId]).toEqual({ x: 42, y: 84 });
+  });
+
+  it('leaves layout unchanged when the add is rejected', () => {
+    const before = initialSessionState();
+    const after = sessionReducer(before, {
+      type: 'ADD_NODE',
+      serviceId: 'vpc',
+      parentId: 'missing',
+      position: { x: 1, y: 1 },
+    });
+    expect(after.layout).toBe(before.layout);
   });
 });
 
@@ -81,6 +115,7 @@ describe('MOVE_NODE', () => {
       type: 'MOVE_NODE',
       nodeId: publicId,
       newParentId: null,
+      position: { x: 99, y: 99 },
     });
     expect(getParentId(moved.canvasTree, publicId)).toBeNull();
     expect(countNodes(moved.canvasTree)).toBe(countNodes(state.canvasTree));
@@ -93,17 +128,52 @@ describe('MOVE_NODE', () => {
       type: 'MOVE_NODE',
       nodeId: vpcId,
       newParentId: frontendId,
+      position: { x: 0, y: 0 },
     });
     expect(after).toBe(state);
   });
+
+  it('updates only the moved Node\'s own layout entry (contracts/canvas-layout.md case 8)', () => {
+    const { state, publicId, frontendId } = seeded();
+    const frontendBefore = state.layout[frontendId];
+
+    const moved = sessionReducer(state, {
+      type: 'MOVE_NODE',
+      nodeId: publicId,
+      newParentId: null,
+      position: { x: 123, y: 456 },
+    });
+
+    expect(moved.layout[publicId]).toEqual({ x: 123, y: 456 });
+    // The descendant's own entry is untouched — it stays correct because
+    // positions are parent-relative, not because it was recomputed.
+    expect(moved.layout[frontendId]).toBe(frontendBefore);
+  });
+
+  it('leaves layout unchanged when the move is rejected', () => {
+    const { state, vpcId, frontendId } = seeded();
+    const after = sessionReducer(state, {
+      type: 'MOVE_NODE',
+      nodeId: vpcId,
+      newParentId: frontendId,
+      position: { x: 7, y: 7 },
+    });
+    expect(after.layout).toBe(state.layout);
+  });
 });
 
-describe('deletion', () => {
+describe('deletion and layout pruning', () => {
   it('deletes a childless Node immediately, with no confirmation', () => {
     const { state, frontendId } = seeded();
     const after = sessionReducer(state, { type: 'REQUEST_DELETE', nodeId: frontendId });
     expect(after.pendingDeletion).toBeNull();
     expect(findNode(after.canvasTree, frontendId)).toBeNull();
+  });
+
+  it('removes the deleted Node\'s layout entry on immediate delete', () => {
+    const { state, frontendId } = seeded();
+    const after = sessionReducer(state, { type: 'REQUEST_DELETE', nodeId: frontendId });
+    expect(after.layout).not.toHaveProperty(frontendId);
   });
 
   it('defers deletion of a populated container pending confirmation', () => {
@@ -112,6 +182,7 @@ describe('deletion', () => {
     expect(after.pendingDeletion).toBe(publicId);
     // Nothing removed yet.
     expect(findNode(after.canvasTree, publicId)).not.toBeNull();
+    expect(after.layout[publicId]).toBeDefined();
   });
 
   it('CONFIRM_DELETE cascades to the whole subtree', () => {
@@ -123,12 +194,24 @@ describe('deletion', () => {
     expect(after.pendingDeletion).toBeNull();
   });
 
-  it('CANCEL_DELETE clears the prompt and keeps the Node', () => {
+  it('CONFIRM_DELETE removes layout entries for the Node and every descendant, none orphaned', () => {
+    const { state, vpcId, publicId, frontendId } = seeded();
+    const pending = sessionReducer(state, { type: 'REQUEST_DELETE', nodeId: publicId });
+    const after = sessionReducer(pending, { type: 'CONFIRM_DELETE' });
+
+    expect(after.layout).not.toHaveProperty(publicId);
+    expect(after.layout).not.toHaveProperty(frontendId);
+    // The surviving sibling keeps its own entry.
+    expect(after.layout[vpcId]).toBeDefined();
+  });
+
+  it('CANCEL_DELETE clears the prompt, keeps the Node, and leaves layout untouched', () => {
     const { state, publicId } = seeded();
     const pending = sessionReducer(state, { type: 'REQUEST_DELETE', nodeId: publicId });
     const after = sessionReducer(pending, { type: 'CANCEL_DELETE' });
     expect(after.pendingDeletion).toBeNull();
     expect(findNode(after.canvasTree, publicId)).not.toBeNull();
+    expect(after.layout).toBe(pending.layout);
   });
 
   it('CONFIRM_DELETE with nothing pending is a no-op', () => {
@@ -165,7 +248,12 @@ describe('REVEAL_CATEGORY', () => {
 describe('staleness (FR-030, FR-031)', () => {
   it('ADD_NODE marks an existing Evaluation stale but keeps it visible', () => {
     const state = withEvaluation();
-    const after = sessionReducer(state, { type: 'ADD_NODE', serviceId: 'rds', parentId: null });
+    const after = sessionReducer(state, {
+      type: 'ADD_NODE',
+      serviceId: 'rds',
+      parentId: null,
+      position: ORIGIN,
+    });
     expect(after.evaluationStale).toBe(true);
     expect(after.evaluation).toBe(anEvaluation);
   });
@@ -177,6 +265,7 @@ describe('staleness (FR-030, FR-031)', () => {
       type: 'MOVE_NODE',
       nodeId: publicId,
       newParentId: null,
+      position: ORIGIN,
     });
     expect(after.evaluationStale).toBe(true);
   });
@@ -202,6 +291,7 @@ describe('staleness (FR-030, FR-031)', () => {
       type: 'MOVE_NODE',
       nodeId: vpcId,
       newParentId: frontendId,
+      position: ORIGIN,
     });
     expect(after.evaluationStale).toBe(false);
   });
@@ -211,6 +301,7 @@ describe('staleness (FR-030, FR-031)', () => {
       type: 'ADD_NODE',
       serviceId: 'rds',
       parentId: null,
+      position: ORIGIN,
     });
     expect(stale.evaluationStale).toBe(true);
 
@@ -222,15 +313,17 @@ describe('staleness (FR-030, FR-031)', () => {
 });
 
 describe('RESTORE', () => {
-  it('restores the tree and revealed Categories', () => {
+  it('restores the tree, revealed Categories, and layout', () => {
     const { state } = seeded();
     const after = sessionReducer(initialSessionState(), {
       type: 'RESTORE',
       canvasTree: state.canvasTree,
       revealedCategories: ['infrastructure', 'data-tier'],
+      layout: state.layout,
     });
     expect(countNodes(after.canvasTree)).toBe(3);
     expect(after.revealedCategories).toEqual(['infrastructure', 'data-tier']);
+    expect(after.layout).toEqual(state.layout);
   });
 
   it('leaves the Evaluation null (FR-034)', () => {
@@ -239,6 +332,7 @@ describe('RESTORE', () => {
       type: 'RESTORE',
       canvasTree: state.canvasTree,
       revealedCategories: [],
+      layout: state.layout,
     });
     expect(after.evaluation).toBeNull();
     expect(after.evaluationStale).toBe(false);

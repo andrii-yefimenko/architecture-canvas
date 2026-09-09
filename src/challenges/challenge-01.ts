@@ -67,37 +67,75 @@ export const challenge01: Challenge = {
 
   // The catalog deliberately includes distractors. A catalog containing only
   // correct answers would not test judgement (contracts/challenge.md).
+  // renderKind per contracts/challenge.md: 'frame' for real networking/
+  // orchestration boundaries (VPC, subnets), 'card' for every leaf resource —
+  // matching real AWS diagramming convention, independent of `category`.
   services: [
     // Networking and content delivery
-    { id: 'vpc', name: 'VPC', category: 'Networking and content delivery' },
-    { id: 'public-subnet', name: 'Public Subnet', category: 'Networking and content delivery' },
-    { id: 'private-subnet', name: 'Private Subnet', category: 'Networking and content delivery' },
-    { id: 'internet-gateway', name: 'Internet Gateway', category: 'Networking and content delivery' },
-    { id: 'nat-gateway', name: 'NAT Gateway', category: 'Networking and content delivery' },
-    { id: 'cloudfront', name: 'CloudFront', category: 'Networking and content delivery' },
-    { id: 'route-53', name: 'Route 53', category: 'Networking and content delivery' },
-    { id: 'direct-connect', name: 'Direct Connect', category: 'Networking and content delivery' },
+    { id: 'vpc', name: 'VPC', category: 'Networking and content delivery', renderKind: 'frame' },
+    {
+      id: 'public-subnet',
+      name: 'Public Subnet',
+      category: 'Networking and content delivery',
+      renderKind: 'frame',
+    },
+    {
+      id: 'private-subnet',
+      name: 'Private Subnet',
+      category: 'Networking and content delivery',
+      renderKind: 'frame',
+    },
+    {
+      id: 'internet-gateway',
+      name: 'Internet Gateway',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'nat-gateway',
+      name: 'NAT Gateway',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'cloudfront',
+      name: 'CloudFront',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'route-53',
+      name: 'Route 53',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'direct-connect',
+      name: 'Direct Connect',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
 
     // Compute — EC2 roles are distinct Services, never one configurable Service (FR-010).
-    { id: 'ec2-frontend', name: 'EC2 (Frontend)', category: 'Compute' },
-    { id: 'ec2-backend', name: 'EC2 (Backend)', category: 'Compute' },
-    { id: 'lambda', name: 'Lambda', category: 'Compute' },
-    { id: 'ecs', name: 'ECS', category: 'Compute' },
-    { id: 'eks', name: 'EKS', category: 'Compute' },
-    { id: 'fargate', name: 'Fargate', category: 'Compute' },
-    { id: 'elastic-beanstalk', name: 'Elastic Beanstalk', category: 'Compute' },
+    { id: 'ec2-frontend', name: 'EC2 (Frontend)', category: 'Compute', renderKind: 'card' },
+    { id: 'ec2-backend', name: 'EC2 (Backend)', category: 'Compute', renderKind: 'card' },
+    { id: 'lambda', name: 'Lambda', category: 'Compute', renderKind: 'card' },
+    { id: 'ecs', name: 'ECS', category: 'Compute', renderKind: 'card' },
+    { id: 'eks', name: 'EKS', category: 'Compute', renderKind: 'card' },
+    { id: 'fargate', name: 'Fargate', category: 'Compute', renderKind: 'card' },
+    { id: 'elastic-beanstalk', name: 'Elastic Beanstalk', category: 'Compute', renderKind: 'card' },
 
     // Databases
-    { id: 'rds', name: 'RDS', category: 'Databases' },
-    { id: 'aurora', name: 'Aurora', category: 'Databases' },
-    { id: 'dynamodb', name: 'DynamoDB', category: 'Databases' },
-    { id: 'elasticache', name: 'ElastiCache', category: 'Databases' },
+    { id: 'rds', name: 'RDS', category: 'Databases', renderKind: 'card' },
+    { id: 'aurora', name: 'Aurora', category: 'Databases', renderKind: 'card' },
+    { id: 'dynamodb', name: 'DynamoDB', category: 'Databases', renderKind: 'card' },
+    { id: 'elasticache', name: 'ElastiCache', category: 'Databases', renderKind: 'card' },
 
     // Storage
-    { id: 's3', name: 'S3', category: 'Storage' },
-    { id: 's3-glacier', name: 'S3 Glacier', category: 'Storage' },
-    { id: 'ebs', name: 'EBS', category: 'Storage' },
-    { id: 'efs', name: 'EFS', category: 'Storage' },
+    { id: 's3', name: 'S3', category: 'Storage', renderKind: 'card' },
+    { id: 's3-glacier', name: 'S3 Glacier', category: 'Storage', renderKind: 'card' },
+    { id: 'ebs', name: 'EBS', category: 'Storage', renderKind: 'card' },
+    { id: 'efs', name: 'EFS', category: 'Storage', renderKind: 'card' },
   ],
 
   // The 11 Rules in MVP.md's numbered order, so the rendered checklist matches

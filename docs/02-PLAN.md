@@ -1,7 +1,7 @@
 # Project Roadmap & Execution Plan
 
-**Current Version**: `v0.2.0`  
-**Target Milestone**: `v0.3.0` (2D Free-form Canvas & Node Visualization)  
+**Current Version**: `v0.3.0`  
+**Target Milestone**: `v0.x.x` (Connectors & Explicit Relationships) — not yet scoped; needs its own Brainstorm/Grill session before `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
 ---
@@ -34,15 +34,16 @@
 - Challenge-scoped persistent storage (`architecture-canvas:session:${challengeId}`).
 - 265 passing tests.
 
-### v0.3.0 - 2D Free-form Canvas Engine (Current Focus)
-**Goal**: Transition from vertical flex-tree drop-zones to an AWS-like 2D spatial workspace (CloudFormation / Application Composer style). Design captured in [ADR-0002](adr/0002-2d-spatial-canvas-blocks.md).
+### v0.3.0 - 2D Free-form Canvas Engine (Completed)
+**Goal**: Transition from vertical flex-tree drop-zones to an AWS-like 2D spatial workspace (CloudFormation / Application Composer style). Design captured in [ADR-0002](adr/0002-2d-spatial-canvas-blocks.md); spec/plan/tasks in `specs/003-2d-canvas-blocks/`.
 
-- Frames (VPC, subnets, ...) and compact Cards (EC2, RDS, ALB, ...) via a new `Service.renderKind: 'frame' | 'card'` field; containment stays the `children` array, `renderKind` only picks the empty-state look.
-- Free-form x/y placement with grid-snap, in a fixed (non-pannable, non-zoomable) viewport.
-- Layout data (`{x, y, width, height}`) in a new state-layer map, not on the domain `Node` type; persisted per-Challenge alongside the Canvas Tree (`SESSION_VERSION` bump).
-- Frames auto-size to their children; no manual resize handle.
-- Coarse keyboard support (assign into a Frame); fine-grained keyboard repositioning deferred.
+- Frames (VPC, subnets, ECS Cluster) and compact Cards (EC2, RDS, ALB, ...) via a new `Service.renderKind: 'frame' | 'card'` field; containment stays the `children` array, `renderKind` only picks the empty-state look — a Node with children always renders as a Frame regardless.
+- Free-form x/y placement with grid-snap (8px), in a fixed (non-pannable, non-zoomable but scrollable) viewport.
+- Position data (`{x, y}`; size is always derived, never stored) in a new `src/state/layout.ts` module, not on the domain `Node` type; persisted per-Challenge alongside the Canvas Tree (`SESSION_VERSION` bumped 1 → 2).
+- Frames auto-size to their children; no manual resize handle. `src/components/canvas/collision.ts` needed **zero** code changes — nested Frames still nest in the DOM, so the existing depth-tiebreak collision strategy stayed correct (a correction to ADR-0002's own cost estimate, found during implementation).
+- Coarse keyboard support (assign into a Frame via a new `KeyboardPlacement` control); fine-grained keyboard repositioning deferred.
 - Deferred to `docs/03-BACKLOG.md`: pan/zoom + minimap, manual Frame resize, full keyboard fine-grained repositioning, collision/overlap-avoidance.
+- 321 passing tests (up from 265). Real pointer-driven drag-and-drop — including reparenting a Card into a Frame and auto-resize — was verified in an actual headless-Chromium browser session, not just jsdom; this is the first time this project has directly confirmed the drag gesture itself, closing the manual-verification gap `MVP.md`'s own acceptance evidence had flagged since v0.1.0.
 
 
 ### v0.x.x - Connectors & Explicit Relationships (Future)
@@ -65,7 +66,7 @@
 
 **Routing — hand-rolled `useRoute()`** (`src/routing/useRoute.ts`). `Route = {page:'catalog'} | {page:'task', challengeId}`, parsed from `window.location.pathname`; navigation via `history.pushState` with a synchronous state update, plus a `popstate` listener for back/forward. The hook only *parses* the URL shape — it does not validate that a `challengeId` exists in the Registry; that check (and the fallback to the Catalog Page) lives in `App.tsx`, per FR-005. `App.tsx` also keys `<TaskPage key={challenge.id}>` to force a remount on direct Challenge-to-Challenge URL navigation — without it, `useReducer`'s lazy initializer wouldn't rerun and one Challenge's Canvas Tree could leak into another's session. No routing library; same "no dependency until built-ins stop being enough" reasoning as state management.
 
-**Persistence — per-Challenge scoped localStorage** (`src/state/persistence.ts`). Key format: `` `architecture-canvas:session:${challengeId}` ``. Stored envelope: `{ version: SESSION_VERSION, challengeId, canvasTree, revealedCategories }` — `SESSION_VERSION` is currently `1`. Validation is strictly all-or-nothing: a version mismatch, a `challengeId` mismatch, or any structurally invalid node/category (e.g. a `serviceId` no longer in the Challenge's catalog) discards the whole envelope and starts clean — there is no partial repair or migration. The `challengeId` is checked even though it's embedded in the key name, specifically to guard against Challenge #1 and #2's overlapping Service ids (`vpc`, `rds`, `internet-gateway`, ...) ever letting one Challenge's tree be silently accepted as another's. **Evaluation is never persisted** (FR-034) — a restored session always starts with no results shown. `clearSession(challengeId)` does a hard `localStorage.removeItem`, called from `Header.tsx`'s Back-to-Catalog handler, so leaving a Challenge wipes its in-progress session by design (persistence is a refresh safety-net, not a resume-later feature). Every persistence function swallows storage errors silently — private browsing / disabled storage degrades to "no persistence," never an error UI.
+**Persistence — per-Challenge scoped localStorage** (`src/state/persistence.ts`). Key format: `` `architecture-canvas:session:${challengeId}` ``. Stored envelope: `{ version: SESSION_VERSION, challengeId, canvasTree, revealedCategories, layout }` — `layout` and the `1 → 2` version bump added by ADR-0002 (below); envelope shape as of that ADR is current. Validation is strictly all-or-nothing: a version mismatch, a `challengeId` mismatch, or any structurally invalid node/category (e.g. a `serviceId` no longer in the Challenge's catalog) discards the whole envelope and starts clean — there is no partial repair or migration. The `challengeId` is checked even though it's embedded in the key name, specifically to guard against Challenge #1 and #2's overlapping Service ids (`vpc`, `rds`, `internet-gateway`, ...) ever letting one Challenge's tree be silently accepted as another's. **Evaluation is never persisted** (FR-034) — a restored session always starts with no results shown. `clearSession(challengeId)` does a hard `localStorage.removeItem`, called from `Header.tsx`'s Back-to-Catalog handler, so leaving a Challenge wipes its in-progress session by design (persistence is a refresh safety-net, not a resume-later feature). Every persistence function swallows storage errors silently — private browsing / disabled storage degrades to "no persistence," never an error UI.
 
 **Challenge data shape & Registry**. `Challenge` (`src/domain/types.ts`): `id, title, description, visibleRequirements, hiddenRequirementCategories, services, rules, difficulty, tags, shortDescription`. `Rule` is a discriminated union — `PresenceRule | ContainmentRule` (`kind: 'presence' | 'containment'`) — checked exhaustively in the evaluator, so a new Rule kind can't compile silently unhandled. The Registry (`src/challenges/index.ts`) is a static, eagerly-imported `challengeRegistry: readonly Challenge[]` in authorial order, plus `getChallengeById(id)` returning `undefined` on a miss — that `undefined` is the deliberate signal `App.tsx` uses to fall back to the Catalog Page, not an error case.
 

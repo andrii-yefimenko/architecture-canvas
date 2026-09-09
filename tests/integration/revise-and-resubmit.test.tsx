@@ -157,6 +157,7 @@ describe('Scenario 4: applying a Recommendation raises the Score (SC-008)', () =
         type: 'MOVE_NODE',
         nodeId: flawed.roots[0]!.children[0]!.children[0]!.id, // the backend
         newParentId: flawed.roots[0]!.children[1]!.id, // the private subnet
+        position: { x: 0, y: 0 },
       },
     ).canvasTree;
 

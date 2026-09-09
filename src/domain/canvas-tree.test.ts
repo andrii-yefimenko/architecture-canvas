@@ -9,6 +9,7 @@ import {
   isDescendant,
   moveNode,
   removeNode,
+  subtreeIds,
 } from './canvas-tree';
 import type { CanvasTree } from './types';
 
@@ -235,6 +236,30 @@ describe('removeNode', () => {
     const before = JSON.stringify(tree);
     removeNode(tree, publicId);
     expect(JSON.stringify(tree)).toBe(before);
+  });
+});
+
+describe('subtreeIds', () => {
+  it('returns just the id for a childless Node', () => {
+    const { tree, frontendId } = buildNestedTree();
+    expect(subtreeIds(tree, frontendId)).toEqual([frontendId]);
+  });
+
+  it('returns the Node and every descendant for a nested subtree', () => {
+    const { tree, publicId, frontendId } = buildNestedTree();
+    expect(subtreeIds(tree, publicId).sort()).toEqual([publicId, frontendId].sort());
+  });
+
+  it('returns every id in the tree for the whole root', () => {
+    const { tree, vpcId, publicId, privateId, frontendId } = buildNestedTree();
+    expect(subtreeIds(tree, vpcId).sort()).toEqual(
+      [vpcId, publicId, privateId, frontendId].sort(),
+    );
+  });
+
+  it('returns an empty array for a Node not present in the tree', () => {
+    const { tree } = buildNestedTree();
+    expect(subtreeIds(tree, 'nope')).toEqual([]);
   });
 });
 

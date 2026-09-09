@@ -120,6 +120,7 @@ describe('the Evaluation is deliberately not restored (FR-034)', () => {
     expect(Object.keys(JSON.parse(raw!)).sort()).toEqual([
       'canvasTree',
       'challengeId',
+      'layout',
       'revealedCategories',
       'version',
     ]);

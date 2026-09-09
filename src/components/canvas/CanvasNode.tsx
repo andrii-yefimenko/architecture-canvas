@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { useSession } from '@/state/session-context';
 import type { Node } from '@/domain/types';
+import { useSession } from '@/state/session-context';
+import { computeNodeSize, effectiveRenderKind } from '@/state/layout';
 
 interface CanvasNodeProps {
   readonly node: Node;
@@ -10,14 +11,19 @@ interface CanvasNodeProps {
 
 /**
  * A placed Node: both droppable (anything may nest inside it, FR-012) and
- * draggable (it may be re-parented, FR-015).
+ * draggable (it may be re-parented, FR-015). Renders as a Frame — auto-sized
+ * to enclose its children — or a Card of fixed size, absolutely positioned
+ * from its own Layout entry (see contracts/canvas-layout.md). A childless
+ * Node whose Service defaults to Card promotes to a Frame the moment it
+ * gains a child (FR-002); the drop that causes this is never rejected.
  *
  * Deliberately renders NO valid/invalid drop signal while a drag is in
- * progress (FR-013) — hinting at legal parents would leak the answer. The only
- * drag-time styling is on the Node being dragged, not on prospective targets.
+ * progress (FR-013) — hinting at legal parents would leak the answer. The
+ * only drag-time styling is on the Node being dragged, not on prospective
+ * targets.
  */
 export function CanvasNode({ node, depth }: CanvasNodeProps) {
-  const { challenge, dispatch } = useSession();
+  const { challenge, state, dispatch } = useSession();
 
   const { setNodeRef: setDroppableRef } = useDroppable({
     id: node.id,
@@ -35,14 +41,31 @@ export function CanvasNode({ node, depth }: CanvasNodeProps) {
   });
 
   const service = challenge.services.find((s) => s.id === node.serviceId);
+  const renderKindOf = (serviceId: string) =>
+    challenge.services.find((s) => s.id === serviceId)?.renderKind ?? 'card';
+
+  const position = state.layout[node.id] ?? { x: 0, y: 0 };
+  const size = computeNodeSize(node, state.layout, renderKindOf);
+  const renderKind = effectiveRenderKind(node.children.length, service?.renderKind ?? 'card');
+  const isFrame = renderKind === 'frame';
 
   return (
     <div
       ref={setDroppableRef}
       data-testid={`node-${node.id}`}
-      className={`rounded-lg border-2 border-slate-300 bg-white/70 p-2 ${
-        isDragging ? 'opacity-40' : ''
-      }`}
+      data-render-kind={renderKind}
+      style={{
+        position: 'absolute',
+        left: position.x,
+        top: position.y,
+        width: size.width,
+        height: size.height,
+      }}
+      className={`rounded-lg p-2 ${
+        isFrame
+          ? 'border-2 border-dashed border-slate-400 bg-slate-50/80'
+          : 'border-2 border-solid border-slate-300 bg-white'
+      } ${isDragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <span
@@ -63,13 +86,9 @@ export function CanvasNode({ node, depth }: CanvasNodeProps) {
         </button>
       </div>
 
-      {node.children.length > 0 && (
-        <div className="mt-2 flex flex-col gap-2 pl-3">
-          {node.children.map((child) => (
-            <CanvasNode key={child.id} node={child} depth={depth + 1} />
-          ))}
-        </div>
-      )}
+      {node.children.map((child) => (
+        <CanvasNode key={child.id} node={child} depth={depth + 1} />
+      ))}
     </div>
   );
 }

@@ -3,10 +3,12 @@ import { Header } from '@/components/Header';
 import { CANVAS_ROOT_ID, Canvas } from '@/components/canvas/Canvas';
 import { deepestDroppableFirst } from '@/components/canvas/collision';
 import { DeleteConfirmDialog } from '@/components/canvas/DeleteConfirmDialog';
+import { KeyboardPlacement } from '@/components/canvas/KeyboardPlacement';
 import { RequirementsPanel } from '@/components/requirements/RequirementsPanel';
 import { ServicesPanel } from '@/components/services/ServicesPanel';
 import { SessionProvider } from '@/state/SessionProvider';
 import type { Challenge } from '@/domain/types';
+import { computeDropPosition } from '@/state/layout';
 import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
 
@@ -37,11 +39,19 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     // Dropping on the Canvas root means "no parent".
     const parentId = over.id === CANVAS_ROOT_ID ? null : String(over.id);
 
+    // The drop point, in the target's local coordinates — the dragged
+    // element's final on-screen rect minus the target droppable's own rect,
+    // both dnd-kit-measured in the same viewport-relative space
+    // (contracts/canvas-layout.md's drop-position formula).
+    const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+    const position = activeRect ? computeDropPosition(activeRect, over.rect) : { x: 0, y: 0 };
+
     if (dragged['kind'] === 'service') {
       dispatch({
         type: 'ADD_NODE',
         serviceId: String(dragged['serviceId']),
         parentId,
+        position,
       });
       return;
     }
@@ -50,7 +60,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       const nodeId = String(dragged['nodeId']);
       // moveNode rejects a self-nesting move and returns the tree unchanged,
       // so no guard is needed here (research R-02).
-      dispatch({ type: 'MOVE_NODE', nodeId, newParentId: parentId });
+      dispatch({ type: 'MOVE_NODE', nodeId, newParentId: parentId, position });
     }
   };
 
@@ -80,6 +90,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
             className="w-72 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4"
           >
             <ServicesPanel />
+            <KeyboardPlacement />
           </section>
         </div>
       </div>

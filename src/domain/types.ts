@@ -27,6 +27,18 @@ export type RuleId = string;
 // --- Service ---------------------------------------------------------------
 
 /**
+ * A Node's default, empty-state on-canvas appearance — a resizable Frame
+ * (e.g. VPC, Public Subnet) or a compact Card (e.g. EC2, RDS). See
+ * CONTEXT.md's Frame/Card entries and this feature's canvas-layout contract.
+ *
+ * Only ever picks the *empty*-state look: a Node with children always renders
+ * as an auto-sized Frame regardless of this value (FR-002), so a `'card'`
+ * Service that gains a child still promotes to a Frame rather than being
+ * rejected.
+ */
+export type RenderKind = 'frame' | 'card';
+
+/**
  * A catalog definition: a *type*, not a placed thing.
  *
  * A Service's type encodes its role — "EC2 (Frontend)" and "EC2 (Backend)" are
@@ -39,6 +51,8 @@ export interface Service {
   readonly name: string;
   /** Display grouping in the Services panel, e.g. "Compute". */
   readonly category: string;
+  /** Default on-canvas appearance while the Node has no children. */
+  readonly renderKind: RenderKind;
 }
 
 // --- Node and Canvas Tree --------------------------------------------------

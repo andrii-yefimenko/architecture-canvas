@@ -39,6 +39,7 @@ function buildInitialState(challenge: Challenge, seed: SessionState | undefined)
     ...initialSessionState(),
     canvasTree: restored.canvasTree,
     revealedCategories: [...restored.revealedCategories],
+    layout: restored.layout,
   };
 }
 
@@ -62,12 +63,13 @@ export function SessionProvider({
       return;
     }
     // The Evaluation is deliberately not persisted (FR-034); saveSession takes
-    // only the two fields that are.
+    // only the fields that are.
     saveSession(challenge.id, {
       canvasTree: state.canvasTree,
       revealedCategories: state.revealedCategories,
+      layout: state.layout,
     });
-  }, [state.canvasTree, state.revealedCategories, challenge.id]);
+  }, [state.canvasTree, state.revealedCategories, state.layout, challenge.id]);
 
   const value = useMemo(() => ({ state, dispatch, challenge }), [state, challenge]);
 

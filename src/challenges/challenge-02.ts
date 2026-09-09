@@ -93,35 +93,70 @@ export const challenge02: Challenge = {
   // EC2 (Backend) — the legacy pattern this Challenge is meant to move away
   // from. No Rule references either; that is intentional (see the Q2
   // resolution in docs/03-BACKLOG.md), not an oversight.
+  // renderKind per contracts/challenge.md: 'frame' for real networking/
+  // orchestration boundaries (VPC, subnets, ECS Cluster), 'card' for every
+  // leaf resource — matching real AWS diagramming convention, independent of
+  // `category`.
   services: [
     // Networking and content delivery
-    { id: 'vpc', name: 'VPC', category: 'Networking and content delivery' },
-    { id: 'public-subnet', name: 'Public Subnet', category: 'Networking and content delivery' },
-    { id: 'private-subnet', name: 'Private Subnet', category: 'Networking and content delivery' },
-    { id: 'internet-gateway', name: 'Internet Gateway', category: 'Networking and content delivery' },
-    { id: 'nat-gateway', name: 'NAT Gateway', category: 'Networking and content delivery' },
+    { id: 'vpc', name: 'VPC', category: 'Networking and content delivery', renderKind: 'frame' },
+    {
+      id: 'public-subnet',
+      name: 'Public Subnet',
+      category: 'Networking and content delivery',
+      renderKind: 'frame',
+    },
+    {
+      id: 'private-subnet',
+      name: 'Private Subnet',
+      category: 'Networking and content delivery',
+      renderKind: 'frame',
+    },
+    {
+      id: 'internet-gateway',
+      name: 'Internet Gateway',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'nat-gateway',
+      name: 'NAT Gateway',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
     {
       id: 'application-load-balancer',
       name: 'Application Load Balancer',
       category: 'Networking and content delivery',
+      renderKind: 'card',
     },
-    { id: 'route-53', name: 'Route 53', category: 'Networking and content delivery' },
-    { id: 'cloudfront', name: 'CloudFront', category: 'Networking and content delivery' },
+    {
+      id: 'route-53',
+      name: 'Route 53',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
+    {
+      id: 'cloudfront',
+      name: 'CloudFront',
+      category: 'Networking and content delivery',
+      renderKind: 'card',
+    },
 
     // Compute & Containers
-    { id: 'ecs-cluster', name: 'ECS Cluster', category: 'Compute & Containers' },
-    { id: 'fargate-task', name: 'Fargate Task', category: 'Compute & Containers' },
-    { id: 'ec2-backend', name: 'EC2 (Backend)', category: 'Compute & Containers' },
-    { id: 'ec2-frontend', name: 'EC2 (Frontend)', category: 'Compute & Containers' },
-    { id: 'lambda', name: 'Lambda', category: 'Compute & Containers' },
-    { id: 'eks', name: 'EKS', category: 'Compute & Containers' },
+    { id: 'ecs-cluster', name: 'ECS Cluster', category: 'Compute & Containers', renderKind: 'frame' },
+    { id: 'fargate-task', name: 'Fargate Task', category: 'Compute & Containers', renderKind: 'card' },
+    { id: 'ec2-backend', name: 'EC2 (Backend)', category: 'Compute & Containers', renderKind: 'card' },
+    { id: 'ec2-frontend', name: 'EC2 (Frontend)', category: 'Compute & Containers', renderKind: 'card' },
+    { id: 'lambda', name: 'Lambda', category: 'Compute & Containers', renderKind: 'card' },
+    { id: 'eks', name: 'EKS', category: 'Compute & Containers', renderKind: 'card' },
 
     // Databases & Storage
-    { id: 'rds', name: 'RDS', category: 'Databases & Storage' },
-    { id: 'dynamodb', name: 'DynamoDB', category: 'Databases & Storage' },
-    { id: 'elasticache', name: 'ElastiCache', category: 'Databases & Storage' },
-    { id: 's3', name: 'S3', category: 'Databases & Storage' },
-    { id: 'ecr', name: 'ECR', category: 'Databases & Storage' },
+    { id: 'rds', name: 'RDS', category: 'Databases & Storage', renderKind: 'card' },
+    { id: 'dynamodb', name: 'DynamoDB', category: 'Databases & Storage', renderKind: 'card' },
+    { id: 'elasticache', name: 'ElastiCache', category: 'Databases & Storage', renderKind: 'card' },
+    { id: 's3', name: 'S3', category: 'Databases & Storage', renderKind: 'card' },
+    { id: 'ecr', name: 'ECR', category: 'Databases & Storage', renderKind: 'card' },
   ],
 
   // The 9 Rules in the source document's numbered order. presence/containment

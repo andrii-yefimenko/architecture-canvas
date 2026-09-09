@@ -124,4 +124,15 @@ describe('Challenge #1 shape, per MVP.md', () => {
       expect(service.name.trim().length).toBeGreaterThan(0);
     }
   });
+
+  it('gives every Service a renderKind (contracts/challenge.md rule 9)', () => {
+    for (const service of challenge01.services) {
+      expect(['frame', 'card']).toContain(service.renderKind);
+    }
+  });
+
+  it('assigns frame only to real networking boundaries', () => {
+    const frames = challenge01.services.filter((s) => s.renderKind === 'frame').map((s) => s.id);
+    expect(frames.sort()).toEqual(['private-subnet', 'public-subnet', 'vpc'].sort());
+  });
 });

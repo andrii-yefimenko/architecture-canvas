@@ -16,13 +16,27 @@ import { pointerWithin, rectIntersection, type CollisionDetection } from '@dnd-k
  *
  * Depth is carried in each droppable's `data` (Canvas root is -1, so every real
  * Node outranks it). See research.md R-01.
+ *
+ * The dragged Node's own droppable is excluded from candidates. Every Node is
+ * both draggable and droppable on the same id (CanvasNode.tsx), and dnd-kit
+ * doesn't reflow the DOM during a drag — the dragged Node's droppable rect
+ * stays at its original position for the whole gesture. Without this
+ * exclusion, a small drag that never leaves that original rect resolves
+ * `over.id === active.id`, which `moveNode`'s cycle guard then rejects
+ * outright — silently discarding the position update along with it. See
+ * docs/adr/0003-auto-snap-overlap-on-drop.md's v0.3.1 polish context.
  */
 export const deepestDroppableFirst: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
-  const collisions = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(args);
+  const candidates = {
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) => c.id !== args.active.id),
+  };
+
+  const pointerCollisions = pointerWithin(candidates);
+  const collisions = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(candidates);
 
   const depthOf = (id: string | number): number => {
-    const container = args.droppableContainers.find((c) => c.id === id);
+    const container = candidates.droppableContainers.find((c) => c.id === id);
     const depth = container?.data.current?.['depth'];
     return typeof depth === 'number' ? depth : -1;
   };

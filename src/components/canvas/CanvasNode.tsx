@@ -1,5 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { Node } from '@/domain/types';
+import { useDragPreview } from '@/state/drag-preview-context';
 import { useSession } from '@/state/session-context';
 import { computeNodeSize, effectiveRenderKind } from '@/state/layout';
 
@@ -49,46 +50,68 @@ export function CanvasNode({ node, depth }: CanvasNodeProps) {
   const renderKind = effectiveRenderKind(node.children.length, service?.renderKind ?? 'card');
   const isFrame = renderKind === 'frame';
 
-  return (
-    <div
-      ref={setDroppableRef}
-      data-testid={`node-${node.id}`}
-      data-render-kind={renderKind}
-      style={{
-        position: 'absolute',
-        left: position.x,
-        top: position.y,
-        width: size.width,
-        height: size.height,
-      }}
-      className={`rounded-lg p-2 ${
-        isFrame
-          ? 'border-2 border-dashed border-slate-400 bg-slate-50/80'
-          : 'border-2 border-solid border-slate-300 bg-white'
-      } ${isDragging ? 'opacity-40' : ''}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span
-          ref={setDraggableRef}
-          {...listeners}
-          {...attributes}
-          className="cursor-grab select-none rounded px-1.5 py-0.5 text-sm font-medium text-slate-800"
-        >
-          {service?.name ?? node.serviceId}
-        </span>
-        <button
-          type="button"
-          aria-label={`Remove ${service?.name ?? node.serviceId}`}
-          onClick={() => dispatch({ type: 'REQUEST_DELETE', nodeId: node.id })}
-          className="rounded px-1.5 text-xs text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
-        >
-          ✕
-        </button>
-      </div>
+  // v0.3.1 ghost preview: a non-committal outline showing the projected
+  // size while a dragged item hovers over this Node as a potential parent.
+  // The real box above is untouched — nothing here affects `size`/`position`.
+  const { targetFrameId, previewSize } = useDragPreview();
+  const showGhost = node.id === targetFrameId && previewSize !== null;
 
-      {node.children.map((child) => (
-        <CanvasNode key={child.id} node={child} depth={depth + 1} />
-      ))}
-    </div>
+  return (
+    <>
+      {showGhost && (
+        <div
+          aria-hidden="true"
+          data-testid={`ghost-${node.id}`}
+          style={{
+            position: 'absolute',
+            left: position.x,
+            top: position.y,
+            width: previewSize!.width,
+            height: previewSize!.height,
+          }}
+          className="pointer-events-none rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/40"
+        />
+      )}
+      <div
+        ref={setDroppableRef}
+        data-testid={`node-${node.id}`}
+        data-render-kind={renderKind}
+        style={{
+          position: 'absolute',
+          left: position.x,
+          top: position.y,
+          width: size.width,
+          height: size.height,
+        }}
+        className={`rounded-lg p-2 ${
+          isFrame
+            ? 'border-2 border-dashed border-slate-400 bg-slate-50/80'
+            : 'border-2 border-solid border-slate-300 bg-white'
+        } ${isDragging ? 'opacity-40' : ''}`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span
+            ref={setDraggableRef}
+            {...listeners}
+            {...attributes}
+            className="cursor-grab select-none rounded px-1.5 py-0.5 text-sm font-medium text-slate-800"
+          >
+            {service?.name ?? node.serviceId}
+          </span>
+          <button
+            type="button"
+            aria-label={`Remove ${service?.name ?? node.serviceId}`}
+            onClick={() => dispatch({ type: 'REQUEST_DELETE', nodeId: node.id })}
+            className="rounded px-1.5 text-xs text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
+          >
+            ✕
+          </button>
+        </div>
+
+        {node.children.map((child) => (
+          <CanvasNode key={child.id} node={child} depth={depth + 1} />
+        ))}
+      </div>
+    </>
   );
 }

@@ -5,12 +5,17 @@ import {
   GRID_SNAP,
   MIN_FRAME_SIZE,
   computeContentSize,
+  computeDragPreviewSize,
   computeDropPosition,
   computeNodeSize,
   computeRootContentSize,
   defaultPositionForKeyboardPlacement,
   effectiveRenderKind,
+  findFreePosition,
+  rectsOverlap,
+  siblingRectsFor,
   snapToGrid,
+  type PositionedRect,
 } from './layout';
 
 const renderKindOf = (serviceId: string) => (serviceId === 'vpc' ? 'frame' : 'card');
@@ -141,6 +146,174 @@ describe('computeRootContentSize', () => {
     const size = computeRootContentSize(roots, layout, renderKindOf);
     expect(size.width).toBeGreaterThan(800);
     expect(size.height).toBeGreaterThan(800);
+  });
+});
+
+describe('rectsOverlap', () => {
+  it('is true for two identical rects', () => {
+    const r: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    expect(rectsOverlap(r, r)).toBe(true);
+  });
+
+  it('is true for a partial overlap', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: { width: 100, height: 100 } };
+    const b: PositionedRect = { position: { x: 50, y: 50 }, size: { width: 100, height: 100 } };
+    expect(rectsOverlap(a, b)).toBe(true);
+  });
+
+  it('is false for rects that only touch at an edge', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: { width: 100, height: 100 } };
+    const b: PositionedRect = { position: { x: 100, y: 0 }, size: { width: 100, height: 100 } };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+
+  it('is false for rects with clear space between them', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: { width: 50, height: 50 } };
+    const b: PositionedRect = { position: { x: 200, y: 200 }, size: { width: 50, height: 50 } };
+    expect(rectsOverlap(a, b)).toBe(false);
+  });
+});
+
+describe('findFreePosition (v0.3.1, ADR-0003)', () => {
+  it('returns the desired position unperturbed when there are no siblings', () => {
+    expect(findFreePosition({ x: 40, y: 40 }, CARD_SIZE, [])).toEqual({ x: 40, y: 40 });
+  });
+
+  it('returns the desired position unperturbed when it already clears every sibling', () => {
+    const siblings: PositionedRect[] = [{ position: { x: 500, y: 500 }, size: CARD_SIZE }];
+    expect(findFreePosition({ x: 0, y: 0 }, CARD_SIZE, siblings)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('nudges to the nearest non-overlapping grid-aligned slot when the desired spot is taken', () => {
+    // A grid-aligned desired position (96 = 12 * GRID_SNAP), so alignment
+    // checks below are meaningful.
+    const occupied: PositionedRect = { position: { x: 96, y: 96 }, size: CARD_SIZE };
+    const found = findFreePosition({ x: 96, y: 96 }, CARD_SIZE, [occupied]);
+
+    expect(found).not.toEqual({ x: 96, y: 96 });
+    // Grid-aligned.
+    expect(found.x % GRID_SNAP).toBe(0);
+    expect(found.y % GRID_SNAP).toBe(0);
+    // Genuinely free.
+    expect(rectsOverlap({ position: found, size: CARD_SIZE }, occupied)).toBe(false);
+  });
+
+  it('never returns a negative coordinate', () => {
+    const occupied: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const found = findFreePosition({ x: 0, y: 0 }, CARD_SIZE, [occupied]);
+    expect(found.x).toBeGreaterThanOrEqual(0);
+    expect(found.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it('still finds a free spot among several tightly packed siblings', () => {
+    // A tight cluster of Cards around the desired drop point.
+    const siblings: PositionedRect[] = [
+      { position: { x: 100, y: 100 }, size: CARD_SIZE },
+      { position: { x: 260, y: 100 }, size: CARD_SIZE },
+      { position: { x: 100, y: 196 }, size: CARD_SIZE },
+      { position: { x: 260, y: 196 }, size: CARD_SIZE },
+    ];
+    const found = findFreePosition({ x: 100, y: 100 }, CARD_SIZE, siblings);
+
+    for (const sibling of siblings) {
+      expect(rectsOverlap({ position: found, size: CARD_SIZE }, sibling)).toBe(false);
+    }
+  });
+
+  it('falls back to the desired position if nothing is free within the search bound', () => {
+    // Pathological: an enormous single sibling covering the entire search radius.
+    const wall: PositionedRect = { position: { x: -100000, y: -100000 }, size: { width: 200000, height: 200000 } };
+    expect(findFreePosition({ x: 40, y: 40 }, CARD_SIZE, [wall])).toEqual({ x: 40, y: 40 });
+  });
+});
+
+describe('computeDragPreviewSize (v0.3.1 ghost preview)', () => {
+  it('returns null when the projected size does not exceed the current size', () => {
+    const emptyFrame = node('vpc', 'vpc');
+    // Dropping a Card near the origin of an empty (MIN_FRAME_SIZE) Frame
+    // fits within its existing bounds — nothing to preview.
+    const result = computeDragPreviewSize(emptyFrame, {}, renderKindOf, { x: 8, y: 8 }, CARD_SIZE, null);
+    expect(result).toBeNull();
+  });
+
+  it('returns the projected size when the dragged item would make the Frame grow', () => {
+    const frame = node('vpc', 'vpc');
+    const projected = computeDragPreviewSize(frame, {}, renderKindOf, { x: 800, y: 600 }, CARD_SIZE, null);
+
+    expect(projected).not.toBeNull();
+    expect(projected!.width).toBeGreaterThan(MIN_FRAME_SIZE.width);
+    expect(projected!.height).toBeGreaterThan(MIN_FRAME_SIZE.height);
+  });
+
+  it('returns null once the target is already at least that large', () => {
+    const existingChild = node('big', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [existingChild]);
+    const layout = { big: { x: 800, y: 600 } }; // already forces a large Frame
+
+    // Dropping a small Card well within the already-large bounds needs no further growth.
+    const result = computeDragPreviewSize(frame, layout, renderKindOf, { x: 8, y: 8 }, CARD_SIZE, null);
+    expect(result).toBeNull();
+  });
+
+  it('excludes the dragged Node itself from the existing-children bounding box', () => {
+    const dragged = node('self', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [dragged]);
+    const layout = { self: { x: 800, y: 600 } }; // would force growth if not excluded
+
+    // The Node being repositioned is already inside this Frame at a far
+    // position — excluding it means only the new (small) projected position matters.
+    const result = computeDragPreviewSize(frame, layout, renderKindOf, { x: 8, y: 8 }, CARD_SIZE, 'self');
+    expect(result).toBeNull();
+  });
+});
+
+describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
+  it('returns root-level Nodes when parentId is null', () => {
+    const a = node('a', 'ec2-frontend');
+    const b = node('b', 'ec2-frontend');
+    const layout = { a: { x: 0, y: 0 }, b: { x: 200, y: 0 } };
+
+    const rects = siblingRectsFor({ roots: [a, b] }, layout, renderKindOf, null, null);
+
+    expect(rects).toHaveLength(2);
+    expect(rects.map((r) => r.position)).toEqual([layout.a, layout.b]);
+  });
+
+  it("returns a Node's children when parentId names it", () => {
+    const child = node('child', 'ec2-frontend');
+    const parent = node('parent', 'vpc', [child]);
+    const layout = { child: { x: 10, y: 10 } };
+
+    const rects = siblingRectsFor({ roots: [parent] }, layout, renderKindOf, 'parent', null);
+
+    expect(rects).toHaveLength(1);
+    expect(rects[0]?.position).toEqual({ x: 10, y: 10 });
+  });
+
+  it('excludes the given excludeNodeId, e.g. the Node currently being moved', () => {
+    const a = node('a', 'ec2-frontend');
+    const b = node('b', 'ec2-frontend');
+    const layout = { a: { x: 0, y: 0 }, b: { x: 200, y: 0 } };
+
+    const rects = siblingRectsFor({ roots: [a, b] }, layout, renderKindOf, null, 'a');
+
+    expect(rects).toHaveLength(1);
+    expect(rects[0]?.position).toEqual({ x: 200, y: 0 });
+  });
+
+  it('returns an empty array for a parent id not present in the tree', () => {
+    expect(siblingRectsFor({ roots: [] }, {}, renderKindOf, 'nope', null)).toEqual([]);
+  });
+
+  it('feeds findFreePosition end to end: a drop into a Frame already holding a Card avoids it', () => {
+    const existingCard = node('existing', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [existingCard]);
+    const layout = { existing: { x: 16, y: 16 } };
+
+    const siblings = siblingRectsFor({ roots: [frame] }, layout, renderKindOf, 'vpc', null);
+    const found = findFreePosition({ x: 16, y: 16 }, CARD_SIZE, siblings);
+
+    expect(rectsOverlap({ position: found, size: CARD_SIZE }, siblings[0]!)).toBe(false);
   });
 });
 

@@ -12,7 +12,8 @@
  * via computeContentSize — see contracts/canvas-layout.md.
  */
 
-import type { Node, NodeId, RenderKind, ServiceId } from '@/domain/types';
+import { findNode } from '@/domain/canvas-tree';
+import type { CanvasTree, Node, NodeId, RenderKind, ServiceId } from '@/domain/types';
 
 export interface Layout {
   readonly x: number;
@@ -116,6 +117,127 @@ export function computeRootContentSize(
       size: computeNodeSize(node, layout, renderKindOf),
     })),
   );
+}
+
+export interface PositionedRect {
+  readonly position: Layout;
+  readonly size: Size;
+}
+
+/** Axis-aligned bounding-box overlap test. */
+export function rectsOverlap(a: PositionedRect, b: PositionedRect): boolean {
+  return (
+    a.position.x < b.position.x + b.size.width &&
+    a.position.x + a.size.width > b.position.x &&
+    a.position.y < b.position.y + b.size.height &&
+    a.position.y + a.size.height > b.position.y
+  );
+}
+
+const MAX_FREE_SEARCH_RINGS = 50;
+
+/** Every grid-aligned point on the square ring at `offset` around `center`, in perimeter order. */
+function* ringCandidates(center: Layout, offset: number): Generator<Layout> {
+  for (let x = center.x - offset; x <= center.x + offset; x += GRID_SNAP) {
+    yield { x, y: center.y - offset };
+    yield { x, y: center.y + offset };
+  }
+  for (let y = center.y - offset + GRID_SNAP; y <= center.y + offset - GRID_SNAP; y += GRID_SNAP) {
+    yield { x: center.x - offset, y };
+    yield { x: center.x + offset, y };
+  }
+}
+
+/**
+ * If `desired` doesn't overlap any `siblingRects` entry, returns it
+ * unchanged. Otherwise searches outward from `desired` in `GRID_SNAP`
+ * increments (an expanding square ring) for the nearest non-overlapping,
+ * grid-aligned position. Negative coordinates are never returned — a Node
+ * can't be dropped above/left of the Canvas origin.
+ *
+ * Direct drags only (v0.3.1) — a Frame's own auto-resize growing into a
+ * sibling is unaffected; see docs/adr/0003-auto-snap-overlap-on-drop.md.
+ *
+ * If nothing is free within the search bound, returns `desired` unperturbed
+ * rather than searching forever — accepting the overlap beats a stuck drag.
+ */
+export function findFreePosition(
+  desired: Layout,
+  size: Size,
+  siblingRects: readonly PositionedRect[],
+): Layout {
+  const overlapsAny = (position: Layout) =>
+    siblingRects.some((sibling) => rectsOverlap({ position, size }, sibling));
+
+  if (!overlapsAny(desired)) return desired;
+
+  for (let ring = 1; ring <= MAX_FREE_SEARCH_RINGS; ring++) {
+    for (const candidate of ringCandidates(desired, ring * GRID_SNAP)) {
+      if (candidate.x < 0 || candidate.y < 0) continue;
+      if (!overlapsAny(candidate)) return candidate;
+    }
+  }
+
+  return desired;
+}
+
+/**
+ * `parentId`'s current children (or the Canvas root's, for `null`), minus
+ * `excludeNodeId`, each with its position and rendered size — what a direct
+ * drop into that parent must avoid overlapping (v0.3.1, ADR-0003). Feeds
+ * `findFreePosition`. `excludeNodeId` matters for a `MOVE_NODE`: a Node being
+ * repositioned must never be checked against its own current rect.
+ */
+export function siblingRectsFor(
+  tree: CanvasTree,
+  layout: LayoutMap,
+  renderKindOf: (serviceId: ServiceId) => RenderKind,
+  parentId: NodeId | null,
+  excludeNodeId: NodeId | null,
+): PositionedRect[] {
+  const siblings: readonly Node[] =
+    parentId === null ? tree.roots : (findNode(tree, parentId)?.children ?? []);
+
+  return siblings
+    .filter((sibling) => sibling.id !== excludeNodeId)
+    .map((sibling) => ({
+      position: layout[sibling.id] ?? { x: 0, y: 0 },
+      size: computeNodeSize(sibling, layout, renderKindOf),
+    }));
+}
+
+/**
+ * The Frame `targetNode` would become if `draggedSize` were dropped into it
+ * at `draggedPosition`, alongside its current children — v0.3.1's ghost
+ * preview (docs/adr/0003-auto-snap-overlap-on-drop.md's sibling decision).
+ * `excludeNodeId` matters when the dragged item is itself already one of
+ * `targetNode`'s children (repositioning within the same parent).
+ *
+ * Returns `null` when the projection doesn't exceed the target's current
+ * rendered size on either axis — nothing to preview. Purely a projection:
+ * never reads or writes any persisted state, and computing it never mutates
+ * `layout`.
+ */
+export function computeDragPreviewSize(
+  targetNode: Node,
+  layout: LayoutMap,
+  renderKindOf: (serviceId: ServiceId) => RenderKind,
+  draggedPosition: Layout,
+  draggedSize: Size,
+  excludeNodeId: NodeId | null,
+): Size | null {
+  const existingChildren = targetNode.children
+    .filter((child) => child.id !== excludeNodeId)
+    .map((child) => ({
+      position: layout[child.id] ?? { x: 0, y: 0 },
+      size: computeNodeSize(child, layout, renderKindOf),
+    }));
+
+  const projected = computeContentSize([...existingChildren, { position: draggedPosition, size: draggedSize }]);
+  const current = computeNodeSize(targetNode, layout, renderKindOf);
+
+  if (projected.width <= current.width && projected.height <= current.height) return null;
+  return projected;
 }
 
 /**

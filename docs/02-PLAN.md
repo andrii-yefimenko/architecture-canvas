@@ -1,6 +1,6 @@
 # Project Roadmap & Execution Plan
 
-**Current Version**: `v0.3.0`  
+**Current Version**: `v0.3.1`  
 **Target Milestone**: `v0.x.x` (Connectors & Explicit Relationships) — not yet scoped; needs its own Brainstorm/Grill session before `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
@@ -46,6 +46,14 @@
 - 321 passing tests (up from 265). Real pointer-driven drag-and-drop — including reparenting a Card into a Frame and auto-resize — was verified in an actual headless-Chromium browser session, not just jsdom; this is the first time this project has directly confirmed the drag gesture itself, closing the manual-verification gap `MVP.md`'s own acceptance evidence had flagged since v0.1.0.
 
 
+### v0.3.1 - Canvas Polish (Completed)
+**Goal**: Fix real friction found in hands-on browser testing of v0.3.0, before starting v0.4.0. Decision captured in [ADR-0003](adr/0003-auto-snap-overlap-on-drop.md); no full SpecKit spec/tasks cycle — bounded fixes to already-shipped code, no new page/layer/dependency.
+
+- Direct drags now auto-snap to the nearest free grid slot on overlap (`findFreePosition`/`rectsOverlap`/`siblingRectsFor` in `src/state/layout.ts`) — reverses `FR-010`'s "never blocks a drop for overlap" for the direct-drag case only; Frame-auto-resize-triggered overlap is unchanged, still deferred (`docs/03-BACKLOG.md`).
+- Fixed a self-collision bug: every Node is both draggable and droppable on the same id, and a small drag that never left the dragged Node's own stationary rect resolved `over.id === active.id`, which the cycle guard then silently rejected — including the position update. `collision.ts`'s `deepestDroppableFirst` now excludes the active draggable's own id from candidates.
+- Added a live "ghost outline" preview (`DragPreviewContext`, new) showing a Frame's projected size while a dragged item hovers over it as a potential parent — a non-committal overlay; the real Frame and every other Node's layout stay untouched until drop.
+- 348 passing tests (up from 321). Verified in a real headless-Chromium session, not just jsdom: overlap auto-snap avoiding a genuine sibling collision, a small in-place drag actually moving, and the ghost preview appearing/growing/disappearing correctly relative to the real (unchanged-until-drop) Frame box.
+
 ### v0.x.x - Connectors & Explicit Relationships (Future)
 - Directed connection lines (arrows between nodes, e.g. ALB -> ECS -> RDS).
 - Port/Security group relationship evaluation.
@@ -71,6 +79,8 @@
 **Challenge data shape & Registry**. `Challenge` (`src/domain/types.ts`): `id, title, description, visibleRequirements, hiddenRequirementCategories, services, rules, difficulty, tags, shortDescription`. `Rule` is a discriminated union — `PresenceRule | ContainmentRule` (`kind: 'presence' | 'containment'`) — checked exhaustively in the evaluator, so a new Rule kind can't compile silently unhandled. The Registry (`src/challenges/index.ts`) is a static, eagerly-imported `challengeRegistry: readonly Challenge[]` in authorial order, plus `getChallengeById(id)` returning `undefined` on a miss — that `undefined` is the deliberate signal `App.tsx` uses to fall back to the Catalog Page, not an error case.
 
 **ADR-0002 — 2D Spatial Canvas Blocks** (2026-09-08, Accepted). Redesigns the Canvas from nested-list rendering into AWS Application Composer-style 2D blocks: Frames (VPC, subnets) that auto-size to their children, compact Cards (EC2, RDS, ALB) for leaves, chosen via a new `Service.renderKind: 'frame' | 'card'` field. Containment stays the `children` array — Layout (position/size) is presentation-only, kept in a new state-layer map rather than on the domain `Node` type, so the evaluator and Domain Purity are untouched. Free placement with grid-snap, fixed viewport (no pan/zoom in v0.3.0), Layout persisted alongside the Canvas Tree. A Node with children always renders as a Frame regardless of `renderKind`, preserving FR-012's "any node may contain any other" with no new restriction. Terminology (Frame/Card/Layout) is canonical per `CONTEXT.md`; "container" stays reserved for this domain's real AWS/Docker sense. Full text: `docs/adr/0002-2d-spatial-canvas-blocks.md`.
+
+**ADR-0003 — Auto-snap to nearest free slot on overlap** (2026-09-09, Accepted). Direct drags now auto-snap to the nearest non-overlapping grid-aligned slot rather than landing exactly where released — reverses `FR-010`/ADR-0002 decision 4's "never blocks a drop for overlap" for the direct-drag case specifically. Deliberately narrow: Frame-auto-resize-triggered overlap is excluded and stays exactly as the v0.3.0 `/speckit-clarify` session left it (accepted, never nudged) — extending the fix there would mean re-running the search reactively on every tree change, not just on drop. Algorithm is a bounded expanding-ring grid search (`findFreePosition` in `src/state/layout.ts`), never searching forever and never repositioning anything but the single dropped/moved Node. Co-shipped alongside two non-ADR items in the same v0.3.1 pass: a `collision.ts` fix excluding a dragged Node's own droppable from candidates (was silently blocking small in-place drags), and a new ephemeral `DragPreviewContext` ghost-outline hover preview. Full text: `docs/adr/0003-auto-snap-overlap-on-drop.md`.
 
 **See also** — settled specs this doc intentionally doesn't restate: `docs/pages-ux/01-TASK-PAGE.md` (scoring formula, direct-child-only containment, existential Rules, stale-evaluation marking), `docs/pages-ux/02-CATALOG-PAGE.md` (card contents, Registry-order display, no dedicated 404), and the agent-process docs `docs/agents/domain.md` and `docs/agents/issue-tracker.md`.
 

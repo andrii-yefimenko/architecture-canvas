@@ -1,4 +1,13 @@
-import { DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { useState } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+} from '@dnd-kit/core';
 import { Header } from '@/components/Header';
 import { CANVAS_ROOT_ID, Canvas } from '@/components/canvas/Canvas';
 import { deepestDroppableFirst } from '@/components/canvas/collision';
@@ -7,8 +16,19 @@ import { KeyboardPlacement } from '@/components/canvas/KeyboardPlacement';
 import { RequirementsPanel } from '@/components/requirements/RequirementsPanel';
 import { ServicesPanel } from '@/components/services/ServicesPanel';
 import { SessionProvider } from '@/state/SessionProvider';
+import { findNode } from '@/domain/canvas-tree';
 import type { Challenge } from '@/domain/types';
-import { computeDropPosition } from '@/state/layout';
+import { DragPreviewContext, NO_DRAG_PREVIEW } from '@/state/drag-preview-context';
+import {
+  CARD_SIZE,
+  MIN_FRAME_SIZE,
+  computeDragPreviewSize,
+  computeDropPosition,
+  computeNodeSize,
+  findFreePosition,
+  siblingRectsFor,
+  type Layout,
+} from '@/state/layout';
 import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
 
@@ -21,7 +41,7 @@ import { useSession } from '@/state/session-context';
  * Catalog control.
  */
 function Workspace({ navigate }: { readonly navigate: (path: string) => void }) {
-  const { dispatch } = useSession();
+  const { state, challenge, dispatch } = useSession();
 
   const sensors = useSensors(
     // A small activation distance keeps a click on the remove button from
@@ -30,7 +50,61 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     useSensor(KeyboardSensor),
   );
 
+  const renderKindOf = (serviceId: string) =>
+    challenge.services.find((s) => s.id === serviceId)?.renderKind ?? 'card';
+
+  // Ephemeral, drag-only feedback (v0.3.1's ghost preview) — never touches
+  // SessionState/layout. Cleared whenever the drag ends, is cancelled, or
+  // stops hovering over a Frame that would need to grow.
+  const [dragPreview, setDragPreview] = useState(NO_DRAG_PREVIEW);
+
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    const dragged = active.data.current;
+    const targetId = over && over.id !== CANVAS_ROOT_ID ? String(over.id) : null;
+
+    if (!dragged || !targetId || (dragged['kind'] === 'node' && String(dragged['nodeId']) === targetId)) {
+      setDragPreview(NO_DRAG_PREVIEW);
+      return;
+    }
+
+    const targetNode = findNode(state.canvasTree, targetId);
+    if (!targetNode) {
+      setDragPreview(NO_DRAG_PREVIEW);
+      return;
+    }
+
+    let draggedSize;
+    let excludeNodeId: string | null = null;
+    if (dragged['kind'] === 'service') {
+      draggedSize = renderKindOf(String(dragged['serviceId'])) === 'frame' ? MIN_FRAME_SIZE : CARD_SIZE;
+    } else if (dragged['kind'] === 'node') {
+      excludeNodeId = String(dragged['nodeId']);
+      const movedNode = findNode(state.canvasTree, excludeNodeId);
+      draggedSize = movedNode ? computeNodeSize(movedNode, state.layout, renderKindOf) : CARD_SIZE;
+    } else {
+      setDragPreview(NO_DRAG_PREVIEW);
+      return;
+    }
+
+    // Same rect-math handleDragEnd uses for a real drop, but against the
+    // mid-drag rects — the projection tracks the pointer live.
+    const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+    const projectedPosition: Layout = over ? computeDropPosition(activeRect ?? over.rect, over.rect) : { x: 0, y: 0 };
+
+    const previewSize = computeDragPreviewSize(
+      targetNode,
+      state.layout,
+      renderKindOf,
+      projectedPosition,
+      draggedSize,
+      excludeNodeId,
+    );
+
+    setDragPreview(previewSize ? { targetFrameId: targetId, previewSize } : NO_DRAG_PREVIEW);
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragPreview(NO_DRAG_PREVIEW);
     if (!over) return;
 
     const dragged = active.data.current;
@@ -44,20 +118,30 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     // both dnd-kit-measured in the same viewport-relative space
     // (contracts/canvas-layout.md's drop-position formula).
     const activeRect = active.rect.current.translated ?? active.rect.current.initial;
-    const position = activeRect ? computeDropPosition(activeRect, over.rect) : { x: 0, y: 0 };
+    const rawPosition: Layout = activeRect ? computeDropPosition(activeRect, over.rect) : { x: 0, y: 0 };
 
     if (dragged['kind'] === 'service') {
-      dispatch({
-        type: 'ADD_NODE',
-        serviceId: String(dragged['serviceId']),
-        parentId,
-        position,
-      });
+      const serviceId = String(dragged['serviceId']);
+      // A brand-new Node has no children yet, so its size is its Service's
+      // fixed empty-state size (FR-004, FR-005) — never a Frame's auto-size,
+      // since it can't have children before it exists.
+      const newNodeSize = renderKindOf(serviceId) === 'frame' ? MIN_FRAME_SIZE : CARD_SIZE;
+      const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, null);
+      const position = findFreePosition(rawPosition, newNodeSize, siblings);
+
+      dispatch({ type: 'ADD_NODE', serviceId, parentId, position });
       return;
     }
 
     if (dragged['kind'] === 'node') {
       const nodeId = String(dragged['nodeId']);
+      const movedNode = findNode(state.canvasTree, nodeId);
+      const movedSize = movedNode
+        ? computeNodeSize(movedNode, state.layout, renderKindOf)
+        : CARD_SIZE;
+      const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, nodeId);
+      const position = findFreePosition(rawPosition, movedSize, siblings);
+
       // moveNode rejects a self-nesting move and returns the tree unchanged,
       // so no guard is needed here (research R-02).
       dispatch({ type: 'MOVE_NODE', nodeId, newParentId: parentId, position });
@@ -68,34 +152,38 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     <DndContext
       sensors={sensors}
       collisionDetection={deepestDroppableFirst}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => setDragPreview(NO_DRAG_PREVIEW)}
     >
-      <div className="flex h-full flex-col bg-slate-50 text-slate-900">
-        <Header navigate={navigate} />
+      <DragPreviewContext.Provider value={dragPreview}>
+        <div className="flex h-full flex-col bg-slate-50 text-slate-900">
+          <Header navigate={navigate} />
 
-        <div className="flex min-h-0 flex-1">
-          <section
-            aria-label="Requirements"
-            className="w-80 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4"
-          >
-            <RequirementsPanel />
-          </section>
+          <div className="flex min-h-0 flex-1">
+            <section
+              aria-label="Requirements"
+              className="w-80 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-4"
+            >
+              <RequirementsPanel />
+            </section>
 
-          <main aria-label="Canvas" className="min-w-0 flex-1 overflow-auto bg-slate-100 p-6">
-            <Canvas />
-          </main>
+            <main aria-label="Canvas" className="min-w-0 flex-1 overflow-auto bg-slate-100 p-6">
+              <Canvas />
+            </main>
 
-          <section
-            aria-label="Services"
-            className="w-72 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4"
-          >
-            <ServicesPanel />
-            <KeyboardPlacement />
-          </section>
+            <section
+              aria-label="Services"
+              className="w-72 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-4"
+            >
+              <ServicesPanel />
+              <KeyboardPlacement />
+            </section>
+          </div>
         </div>
-      </div>
 
-      <DeleteConfirmDialog />
+        <DeleteConfirmDialog />
+      </DragPreviewContext.Provider>
     </DndContext>
   );
 }

@@ -1,6 +1,6 @@
 # Project Roadmap & Execution Plan
 
-**Current Version**: `v0.3.2`  
+**Current Version**: `v0.3.3`  
 **Target Milestone**: `v0.x.x` (Connectors & Explicit Relationships) — not yet scoped; needs its own Brainstorm/Grill session before `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
@@ -63,6 +63,14 @@
 - `dropAnimation={null}` on `<DragOverlay>`: dnd-kit's default drop animation slides the overlay back to the dragged element's *original* rect (the dimmed source card never visually moves during the drag), reading as a snap-back to the start before the real, now-repositioned element appears. Disabled so the overlay vanishes the instant a drop happens, right as the real element (already re-rendered at its new position) takes its place.
 - Extracted `computeDraggedItemSize` in `src/state/layout.ts`, replacing an identical branch that had been duplicated three times across `handleDragOver`/`handleDragEnd` in `TaskPage.tsx`.
 - 356 passing tests (up from 348). Verified in a real headless-Chromium session: the overlay appears on drag start, its bounding box moves in lockstep with the pointer across multiple points, it carries the correct label and Card/Frame border style, and it's gone (drop-animation settled) after drop.
+
+### v0.3.3 - Canvas Visual Alignment with AWS Diagrams (Completed)
+**Goal**: Align the Canvas's look with standard AWS Architecture Diagram / Application Composer conventions. No ADR: `CONTEXT.md` already defined Card as "a compact, fixed-size square" — the previous rectangular `CARD_SIZE` contradicted the repo's own glossary, so this corrects a mismatch rather than making a new trade-off decision.
+
+- `CARD_SIZE` is now `{width: 64, height: 64}` (was `{160, 96}`) — a Card is a square tile with its label centered and wrapping, like a labeled icon (64 = 8 × `GRID_SNAP`; shrunk from an initial 96 to a tighter, more icon-like footprint after review). `MIN_FRAME_SIZE.width` is now `224` (was `220`, not a multiple of `GRID_SNAP`) — every layout constant is now grid-aligned.
+- A Frame's label is now a rounded corner badge straddling the top border (`CanvasNode.tsx`, `DragOverlayPreview.tsx`), reading as an "AWS Group" rather than a header row identical to a Card's. This needed **no `layout.ts` size-math changes** — the badge's overlap into the box stays within the existing `FRAME_PADDING` already reserved for first-child placement, which was the deciding factor over a full-width header bar (that alternative would have needed a new reserved-height constant threaded through both `computeNodeSize` and `computeDragPreviewSize` to stay in sync).
+- A Card's whole tile is now its own drag handle (draggable + droppable refs merged onto one element) rather than a small label span — its remove button is a corner overlay with `onPointerDown` stopPropagation so a click never gets read as a drag-start.
+- 356 tests unchanged in count (all pass symbolically against the imported size constants — only `DragOverlayPreview.test.tsx`'s hardcoded literal sizes needed fixing to import the real constants, closing a silent-staleness risk). Verified visually in a real headless-Chromium session.
 
 ### v0.x.x - Connectors & Explicit Relationships (Future)
 - Directed connection lines (arrows between nodes, e.g. ALB -> ECS -> RDS).

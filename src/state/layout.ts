@@ -28,8 +28,10 @@ export interface Size {
 }
 
 export const GRID_SNAP = 8;
-export const CARD_SIZE: Size = { width: 160, height: 96 };
-export const MIN_FRAME_SIZE: Size = { width: 220, height: 160 };
+// A compact, fixed-size square (CONTEXT.md's Card definition) — 64 = 8 × GRID_SNAP.
+export const CARD_SIZE: Size = { width: 64, height: 64 };
+// 224 = 28 × GRID_SNAP (was 220, not grid-aligned).
+export const MIN_FRAME_SIZE: Size = { width: 224, height: 160 };
 export const FRAME_PADDING = 16;
 
 /** Rounds to the nearest GRID_SNAP increment — the only placement adjustment ever applied. */

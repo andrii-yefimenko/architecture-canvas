@@ -56,6 +56,27 @@ export function CanvasNode({ node, depth }: CanvasNodeProps) {
   const { targetFrameId, previewSize } = useDragPreview();
   const showGhost = node.id === targetFrameId && previewSize !== null;
 
+  const label = service?.name ?? node.serviceId;
+  const positionStyle = {
+    position: 'absolute' as const,
+    left: position.x,
+    top: position.y,
+    width: size.width,
+    height: size.height,
+  };
+
+  const removeButton = (
+    <button
+      type="button"
+      aria-label={`Remove ${label}`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={() => dispatch({ type: 'REQUEST_DELETE', nodeId: node.id })}
+      className="absolute right-1 top-1 rounded px-1 text-xs text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
+    >
+      ✕
+    </button>
+  );
+
   return (
     <>
       {showGhost && (
@@ -72,46 +93,62 @@ export function CanvasNode({ node, depth }: CanvasNodeProps) {
           className="pointer-events-none rounded-lg border-2 border-dashed border-indigo-400 bg-indigo-50/40"
         />
       )}
-      <div
-        ref={setDroppableRef}
-        data-testid={`node-${node.id}`}
-        data-render-kind={renderKind}
-        style={{
-          position: 'absolute',
-          left: position.x,
-          top: position.y,
-          width: size.width,
-          height: size.height,
-        }}
-        className={`rounded-lg p-2 ${
-          isFrame
-            ? 'border-2 border-dashed border-slate-400 bg-slate-50/80'
-            : 'border-2 border-solid border-slate-300 bg-white'
-        } ${isDragging ? 'opacity-40' : ''}`}
-      >
-        <div className="flex items-center justify-between gap-2">
+      {isFrame ? (
+        // A Frame renders as an AWS-Group-style box: the label is a rounded
+        // badge straddling the top border rather than a header row, so it
+        // costs no reserved vertical space in the size math (research: the
+        // badge's overlap into the box stays within the existing
+        // FRAME_PADDING already used for first-child placement).
+        <div
+          ref={setDroppableRef}
+          data-testid={`node-${node.id}`}
+          data-render-kind={renderKind}
+          style={positionStyle}
+          className={`relative rounded-lg border-2 border-dashed border-slate-400 bg-slate-50/80 p-2 ${
+            isDragging ? 'opacity-40' : ''
+          }`}
+        >
           <span
             ref={setDraggableRef}
             {...listeners}
             {...attributes}
-            className="cursor-grab select-none rounded px-1.5 py-0.5 text-sm font-medium text-slate-800"
+            className="absolute -top-3 left-3 cursor-grab select-none rounded-full border border-slate-400 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-sm"
           >
-            {service?.name ?? node.serviceId}
+            {label}
           </span>
-          <button
-            type="button"
-            aria-label={`Remove ${service?.name ?? node.serviceId}`}
-            onClick={() => dispatch({ type: 'REQUEST_DELETE', nodeId: node.id })}
-            className="rounded px-1.5 text-xs text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900"
-          >
-            ✕
-          </button>
-        </div>
+          {removeButton}
 
-        {node.children.map((child) => (
-          <CanvasNode key={child.id} node={child} depth={depth + 1} />
-        ))}
-      </div>
+          {node.children.map((child) => (
+            <CanvasNode key={child.id} node={child} depth={depth + 1} />
+          ))}
+        </div>
+      ) : (
+        // A Card is a compact square tile (CONTEXT.md) — the whole tile is
+        // the drag handle, its label centered like an icon's caption.
+        <div
+          ref={(el) => {
+            setDroppableRef(el);
+            setDraggableRef(el);
+          }}
+          {...listeners}
+          {...attributes}
+          // Without this, the tile's accessible name (role="button" comes
+          // from dnd-kit's `attributes`) would be computed from ALL its
+          // descendant text — including the remove button's own label —
+          // since the whole tile is now the drag handle rather than just
+          // the label span.
+          aria-label={label}
+          data-testid={`node-${node.id}`}
+          data-render-kind={renderKind}
+          style={positionStyle}
+          className={`relative flex cursor-grab items-center justify-center overflow-hidden rounded-lg border-2 border-solid border-slate-300 bg-white p-1 ${
+            isDragging ? 'opacity-40' : ''
+          }`}
+        >
+          <span className="select-none text-center text-xs leading-snug font-medium text-slate-800">{label}</span>
+          {removeButton}
+        </div>
+      )}
     </>
   );
 }

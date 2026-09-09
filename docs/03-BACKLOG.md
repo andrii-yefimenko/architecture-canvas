@@ -45,7 +45,7 @@ Scoped out of [ADR-0002](adr/0002-2d-spatial-canvas-blocks.md)'s 2D spatial canv
 
 **Full keyboard-driven fine-grained repositioning.** v0.3.0 keeps keyboard support coarse — select a Service and assign it into a Frame at a default position. Arrow-key nudging or similar for pixel-level keyboard placement in a free-form 2D layout is deferred.
 
-**Collision / overlap-avoidance on the Canvas.** v0.3.0 allows sibling Cards to overlap (grid-snap only, no auto-arrange or reject-on-overlap). Actively avoiding or resolving overlapping placements is closer to a polished diagramming tool and out of scope for the first spatial-canvas pass.
+**Collision / overlap-avoidance on the Canvas.** v0.3.0 allows Nodes to overlap without being blocked or auto-rearranged, in both of the ways this can happen: a direct drag-and-drop (grid-snap only), and a Frame auto-resizing to fit a new child in a way that overlaps a sibling it didn't overlap before (resolved identically during `specs/003-2d-canvas-blocks/spec.md`'s `/speckit-clarify` pass, 2026-09-08 — resize-triggered overlap is treated exactly like drop-triggered overlap, never nudged aside). Actively avoiding or resolving overlapping placements, in either case, is closer to a polished diagramming tool and out of scope for the first spatial-canvas pass.
 
 ## Already out of scope per `MVP.md`
 

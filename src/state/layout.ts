@@ -241,6 +241,26 @@ export function computeDragPreviewSize(
 }
 
 /**
+ * The size a dragged item should be treated as — for sizing math (auto-snap,
+ * the ghost preview, v0.3.2's cursor-following overlay) and nothing else.
+ * A `service` drag (new Node, not yet in the tree) has no children yet, so
+ * it's always its Service's fixed empty-state size; a `node` drag (an
+ * existing, possibly-populated Node) uses its real current rendered size.
+ */
+export function computeDraggedItemSize(
+  dragged: { readonly kind: 'service'; readonly serviceId: ServiceId } | { readonly kind: 'node'; readonly nodeId: NodeId },
+  tree: CanvasTree,
+  layout: LayoutMap,
+  renderKindOf: (serviceId: ServiceId) => RenderKind,
+): Size {
+  if (dragged.kind === 'service') {
+    return renderKindOf(dragged.serviceId) === 'frame' ? MIN_FRAME_SIZE : CARD_SIZE;
+  }
+  const movedNode = findNode(tree, dragged.nodeId);
+  return movedNode ? computeNodeSize(movedNode, layout, renderKindOf) : CARD_SIZE;
+}
+
+/**
  * The n-th (0-indexed) Node placed via keyboard into a given parent lands on
  * a deterministic diagonal cascade — never pixel-identical to the previous
  * one, with no collision check needed since overlap is already permitted.

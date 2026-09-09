@@ -1,6 +1,6 @@
 # Project Roadmap & Execution Plan
 
-**Current Version**: `v0.3.1`  
+**Current Version**: `v0.3.2`  
 **Target Milestone**: `v0.x.x` (Connectors & Explicit Relationships) — not yet scoped; needs its own Brainstorm/Grill session before `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
@@ -53,6 +53,16 @@
 - Fixed a self-collision bug: every Node is both draggable and droppable on the same id, and a small drag that never left the dragged Node's own stationary rect resolved `over.id === active.id`, which the cycle guard then silently rejected — including the position update. `collision.ts`'s `deepestDroppableFirst` now excludes the active draggable's own id from candidates.
 - Added a live "ghost outline" preview (`DragPreviewContext`, new) showing a Frame's projected size while a dragged item hovers over it as a potential parent — a non-committal overlay; the real Frame and every other Node's layout stay untouched until drop.
 - 348 passing tests (up from 321). Verified in a real headless-Chromium session, not just jsdom: overlap auto-snap avoiding a genuine sibling collision, a small in-place drag actually moving, and the ghost preview appearing/growing/disappearing correctly relative to the real (unchanged-until-drop) Frame box.
+
+### v0.3.2 - Drag Overlay (Completed)
+**Goal**: Fix the last friction point found in hands-on browser testing before v0.4.0 — dragging a Node had no visual element attached to the cursor. No ADR: this adopts `@dnd-kit/core`'s own standard `DragOverlay` pattern (already in `package.json`, no new dependency), not a reversal of any prior decision, so it doesn't clear the three-part ADR bar.
+
+- A new `<DragOverlay>` (wired into the existing `DndContext` in `TaskPage.tsx`, previously unused anywhere in the codebase) renders a `DragOverlayPreview` — styled like the real Frame/Card, sized to match — that dnd-kit positions under the cursor for the whole gesture, for both a new Service dragged from the palette and an existing Node being repositioned/reparented.
+- A dragged Frame's overlay shows only its real footprint size and label, not its nested children (scope decision, confirmed with the user) — matches the existing v0.3.1 ghost-preview's level of detail rather than a full recursive WYSIWYG copy.
+- The source element keeps its existing `opacity-40` dim-in-place — standard dnd-kit combo of "origin dims, overlay tracks the pointer."
+- `dropAnimation={null}` on `<DragOverlay>`: dnd-kit's default drop animation slides the overlay back to the dragged element's *original* rect (the dimmed source card never visually moves during the drag), reading as a snap-back to the start before the real, now-repositioned element appears. Disabled so the overlay vanishes the instant a drop happens, right as the real element (already re-rendered at its new position) takes its place.
+- Extracted `computeDraggedItemSize` in `src/state/layout.ts`, replacing an identical branch that had been duplicated three times across `handleDragOver`/`handleDragEnd` in `TaskPage.tsx`.
+- 356 passing tests (up from 348). Verified in a real headless-Chromium session: the overlay appears on drag start, its bounding box moves in lockstep with the pointer across multiple points, it carries the correct label and Card/Frame border style, and it's gone (drop-animation settled) after drop.
 
 ### v0.x.x - Connectors & Explicit Relationships (Future)
 - Directed connection lines (arrows between nodes, e.g. ALB -> ECS -> RDS).

@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragOverEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { Header } from '@/components/Header';
 import { CANVAS_ROOT_ID, Canvas } from '@/components/canvas/Canvas';
 import { deepestDroppableFirst } from '@/components/canvas/collision';
 import { DeleteConfirmDialog } from '@/components/canvas/DeleteConfirmDialog';
+import { DragOverlayPreview } from '@/components/canvas/DragOverlayPreview';
 import { KeyboardPlacement } from '@/components/canvas/KeyboardPlacement';
 import { RequirementsPanel } from '@/components/requirements/RequirementsPanel';
 import { ServicesPanel } from '@/components/services/ServicesPanel';
@@ -20,17 +23,18 @@ import { findNode } from '@/domain/canvas-tree';
 import type { Challenge } from '@/domain/types';
 import { DragPreviewContext, NO_DRAG_PREVIEW } from '@/state/drag-preview-context';
 import {
-  CARD_SIZE,
-  MIN_FRAME_SIZE,
+  computeDraggedItemSize,
   computeDragPreviewSize,
   computeDropPosition,
-  computeNodeSize,
+  effectiveRenderKind,
   findFreePosition,
   siblingRectsFor,
   type Layout,
 } from '@/state/layout';
 import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
+
+type ActiveDrag = { readonly kind: 'service'; readonly serviceId: string } | { readonly kind: 'node'; readonly nodeId: string };
 
 /**
  * Three-panel shell (FR-035, FR-036) wrapping a single DndContext.
@@ -58,6 +62,19 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
   // stops hovering over a Frame that would need to grow.
   const [dragPreview, setDragPreview] = useState(NO_DRAG_PREVIEW);
 
+  // v0.3.2's cursor-following overlay — which item, if any, is mid-drag.
+  // Also ephemeral; cleared on drag end/cancel, same as dragPreview above.
+  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const dragged = active.data.current;
+    if (dragged?.['kind'] === 'service') {
+      setActiveDrag({ kind: 'service', serviceId: String(dragged['serviceId']) });
+    } else if (dragged?.['kind'] === 'node') {
+      setActiveDrag({ kind: 'node', nodeId: String(dragged['nodeId']) });
+    }
+  };
+
   const handleDragOver = ({ active, over }: DragOverEvent) => {
     const dragged = active.data.current;
     const targetId = over && over.id !== CANVAS_ROOT_ID ? String(over.id) : null;
@@ -76,11 +93,10 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     let draggedSize;
     let excludeNodeId: string | null = null;
     if (dragged['kind'] === 'service') {
-      draggedSize = renderKindOf(String(dragged['serviceId'])) === 'frame' ? MIN_FRAME_SIZE : CARD_SIZE;
+      draggedSize = computeDraggedItemSize({ kind: 'service', serviceId: String(dragged['serviceId']) }, state.canvasTree, state.layout, renderKindOf);
     } else if (dragged['kind'] === 'node') {
       excludeNodeId = String(dragged['nodeId']);
-      const movedNode = findNode(state.canvasTree, excludeNodeId);
-      draggedSize = movedNode ? computeNodeSize(movedNode, state.layout, renderKindOf) : CARD_SIZE;
+      draggedSize = computeDraggedItemSize({ kind: 'node', nodeId: excludeNodeId }, state.canvasTree, state.layout, renderKindOf);
     } else {
       setDragPreview(NO_DRAG_PREVIEW);
       return;
@@ -105,6 +121,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setDragPreview(NO_DRAG_PREVIEW);
+    setActiveDrag(null);
     if (!over) return;
 
     const dragged = active.data.current;
@@ -125,7 +142,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       // A brand-new Node has no children yet, so its size is its Service's
       // fixed empty-state size (FR-004, FR-005) — never a Frame's auto-size,
       // since it can't have children before it exists.
-      const newNodeSize = renderKindOf(serviceId) === 'frame' ? MIN_FRAME_SIZE : CARD_SIZE;
+      const newNodeSize = computeDraggedItemSize({ kind: 'service', serviceId }, state.canvasTree, state.layout, renderKindOf);
       const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, null);
       const position = findFreePosition(rawPosition, newNodeSize, siblings);
 
@@ -135,10 +152,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
 
     if (dragged['kind'] === 'node') {
       const nodeId = String(dragged['nodeId']);
-      const movedNode = findNode(state.canvasTree, nodeId);
-      const movedSize = movedNode
-        ? computeNodeSize(movedNode, state.layout, renderKindOf)
-        : CARD_SIZE;
+      const movedSize = computeDraggedItemSize({ kind: 'node', nodeId }, state.canvasTree, state.layout, renderKindOf);
       const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, nodeId);
       const position = findFreePosition(rawPosition, movedSize, siblings);
 
@@ -148,14 +162,51 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     }
   };
 
+  // Overlay content derived from activeDrag — label/size/renderKind for
+  // whatever's currently under the cursor, or null when nothing is dragging.
+  const overlayContent = (() => {
+    if (!activeDrag) return null;
+
+    if (activeDrag.kind === 'service') {
+      const service = challenge.services.find((s) => s.id === activeDrag.serviceId);
+      const size = computeDraggedItemSize(activeDrag, state.canvasTree, state.layout, renderKindOf);
+      return { label: service?.name ?? activeDrag.serviceId, size, renderKind: renderKindOf(activeDrag.serviceId) };
+    }
+
+    const movedNode = findNode(state.canvasTree, activeDrag.nodeId);
+    if (!movedNode) return null;
+    const service = challenge.services.find((s) => s.id === movedNode.serviceId);
+    const size = computeDraggedItemSize(activeDrag, state.canvasTree, state.layout, renderKindOf);
+    const renderKind = effectiveRenderKind(movedNode.children.length, renderKindOf(movedNode.serviceId));
+    return { label: service?.name ?? movedNode.serviceId, size, renderKind };
+  })();
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={deepestDroppableFirst}
+      onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setDragPreview(NO_DRAG_PREVIEW)}
+      onDragCancel={() => {
+        setDragPreview(NO_DRAG_PREVIEW);
+        setActiveDrag(null);
+      }}
     >
+      {/*
+        No drop animation: dnd-kit's default animates the overlay back to the
+        dragged element's *original* rect (the source card never visually
+        moves during the drag), which reads as "snapping back to the start"
+        for a heartbeat before the real, now-repositioned element appears.
+        Disabling it makes the overlay vanish the instant drop happens, right
+        as the real element (already re-rendered at its new position) takes
+        its place — no return trip.
+      */}
+      <DragOverlay dropAnimation={null}>
+        {overlayContent && (
+          <DragOverlayPreview label={overlayContent.label} size={overlayContent.size} renderKind={overlayContent.renderKind} />
+        )}
+      </DragOverlay>
       <DragPreviewContext.Provider value={dragPreview}>
         <div className="flex h-full flex-col bg-slate-50 text-slate-900">
           <Header navigate={navigate} />

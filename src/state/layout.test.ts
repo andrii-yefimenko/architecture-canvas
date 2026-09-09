@@ -5,6 +5,7 @@ import {
   GRID_SNAP,
   MIN_FRAME_SIZE,
   computeContentSize,
+  computeDraggedItemSize,
   computeDragPreviewSize,
   computeDropPosition,
   computeNodeSize,
@@ -314,6 +315,33 @@ describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
     const found = findFreePosition({ x: 16, y: 16 }, CARD_SIZE, siblings);
 
     expect(rectsOverlap({ position: found, size: CARD_SIZE }, siblings[0]!)).toBe(false);
+  });
+});
+
+describe('computeDraggedItemSize (v0.3.2 drag overlay)', () => {
+  it('is CARD_SIZE for a card-kind service drag, regardless of any existing tree', () => {
+    const size = computeDraggedItemSize({ kind: 'service', serviceId: 'ec2-frontend' }, { roots: [] }, {}, renderKindOf);
+    expect(size).toEqual(CARD_SIZE);
+  });
+
+  it('is MIN_FRAME_SIZE for a frame-kind service drag — a new Node has no children yet', () => {
+    const size = computeDraggedItemSize({ kind: 'service', serviceId: 'vpc' }, { roots: [] }, {}, renderKindOf);
+    expect(size).toEqual(MIN_FRAME_SIZE);
+  });
+
+  it("is a Node's real current size for a node drag, including an auto-sized Frame with children", () => {
+    const child = node('child', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [child]);
+    const layout = { child: { x: 300, y: 300 } };
+
+    const size = computeDraggedItemSize({ kind: 'node', nodeId: 'vpc' }, { roots: [frame] }, layout, renderKindOf);
+    expect(size).toEqual(computeNodeSize(frame, layout, renderKindOf));
+    expect(size.width).toBeGreaterThan(MIN_FRAME_SIZE.width);
+  });
+
+  it('falls back to CARD_SIZE for a node drag naming a Node absent from the tree', () => {
+    const size = computeDraggedItemSize({ kind: 'node', nodeId: 'missing' }, { roots: [] }, {}, renderKindOf);
+    expect(size).toEqual(CARD_SIZE);
   });
 });
 

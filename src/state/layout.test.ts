@@ -2,7 +2,6 @@ import type { Node } from '@/domain/types';
 import {
   CARD_SIZE,
   FRAME_PADDING,
-  GRID_SNAP,
   MIN_FRAME_SIZE,
   computeContentSize,
   computeDraggedItemSize,
@@ -10,9 +9,9 @@ import {
   computeDropPosition,
   computeNodeSize,
   computeRootContentSize,
-  defaultPositionForKeyboardPlacement,
   effectiveRenderKind,
   findFreePosition,
+  hasClearance,
   rectsOverlap,
   siblingRectsFor,
   snapToGrid,
@@ -25,18 +24,18 @@ function node(id: string, serviceId: string, children: Node[] = []): Node {
   return { id, serviceId, children };
 }
 
-describe('snapToGrid', () => {
-  it('rounds to the nearest GRID_SNAP increment', () => {
+describe('snapToGrid (v0.3.4 revision — decoupled from the gutter guarantee)', () => {
+  it('rounds to the nearest FRAME_PADDING increment', () => {
     expect(snapToGrid(0)).toBe(0);
-    expect(snapToGrid(3)).toBe(0);
-    expect(snapToGrid(5)).toBe(8);
-    expect(snapToGrid(10)).toBe(8);
-    expect(snapToGrid(13)).toBe(16);
+    expect(snapToGrid(6)).toBe(0);
+    expect(snapToGrid(10)).toBe(FRAME_PADDING);
+    expect(snapToGrid(20)).toBe(FRAME_PADDING);
+    expect(snapToGrid(26)).toBe(2 * FRAME_PADDING);
   });
 
   it('handles negative values', () => {
-    expect(snapToGrid(-3)).toBe(0);
-    expect(snapToGrid(-5)).toBe(-8);
+    expect(snapToGrid(-6)).toBe(0);
+    expect(snapToGrid(-10)).toBe(-FRAME_PADDING);
   });
 });
 
@@ -75,7 +74,7 @@ describe('computeContentSize', () => {
 });
 
 describe('computeDropPosition', () => {
-  it('is the difference between the dragged and target rects, snapped to grid', () => {
+  it('is the difference between the dragged and target rects, snapped to the grid', () => {
     const position = computeDropPosition({ left: 120, top: 84 }, { left: 100, top: 60 });
     expect(position).toEqual({ x: snapToGrid(20), y: snapToGrid(24) });
   });
@@ -175,7 +174,7 @@ describe('rectsOverlap', () => {
   });
 });
 
-describe('findFreePosition (v0.3.1, ADR-0003)', () => {
+describe('findFreePosition (v0.3.1/ADR-0003, generalized in v0.3.4/ADR-0004)', () => {
   it('returns the desired position unperturbed when there are no siblings', () => {
     expect(findFreePosition({ x: 40, y: 40 }, CARD_SIZE, [])).toEqual({ x: 40, y: 40 });
   });
@@ -185,18 +184,18 @@ describe('findFreePosition (v0.3.1, ADR-0003)', () => {
     expect(findFreePosition({ x: 0, y: 0 }, CARD_SIZE, siblings)).toEqual({ x: 0, y: 0 });
   });
 
-  it('nudges to the nearest non-overlapping grid-aligned slot when the desired spot is taken', () => {
-    // A grid-aligned desired position (96 = 12 * GRID_SNAP), so alignment
+  it('nudges to the nearest grid-aligned slot with clearance when the desired spot is taken', () => {
+    // A grid-aligned desired position (FRAME_PADDING itself), so alignment
     // checks below are meaningful.
-    const occupied: PositionedRect = { position: { x: 96, y: 96 }, size: CARD_SIZE };
-    const found = findFreePosition({ x: 96, y: 96 }, CARD_SIZE, [occupied]);
+    const occupied: PositionedRect = { position: { x: FRAME_PADDING, y: FRAME_PADDING }, size: CARD_SIZE };
+    const found = findFreePosition({ x: FRAME_PADDING, y: FRAME_PADDING }, CARD_SIZE, [occupied]);
 
-    expect(found).not.toEqual({ x: 96, y: 96 });
+    expect(found).not.toEqual({ x: FRAME_PADDING, y: FRAME_PADDING });
     // Grid-aligned.
-    expect(found.x % GRID_SNAP).toBe(0);
-    expect(found.y % GRID_SNAP).toBe(0);
-    // Genuinely free.
-    expect(rectsOverlap({ position: found, size: CARD_SIZE }, occupied)).toBe(false);
+    expect(found.x % FRAME_PADDING).toBe(0);
+    expect(found.y % FRAME_PADDING).toBe(0);
+    // Genuinely clear, gutter included.
+    expect(hasClearance({ position: found, size: CARD_SIZE }, [occupied])).toBe(true);
   });
 
   it('never returns a negative coordinate', () => {
@@ -204,6 +203,23 @@ describe('findFreePosition (v0.3.1, ADR-0003)', () => {
     const found = findFreePosition({ x: 0, y: 0 }, CARD_SIZE, [occupied]);
     expect(found.x).toBeGreaterThanOrEqual(0);
     expect(found.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it('clamps the desired position up to minPosition on both axes (v0.3.4 revision)', () => {
+    const found = findFreePosition({ x: 0, y: 0 }, CARD_SIZE, [], { x: FRAME_PADDING, y: FRAME_PADDING });
+    expect(found).toEqual({ x: FRAME_PADDING, y: FRAME_PADDING });
+  });
+
+  it('never returns a candidate below minPosition even when searching for a clear spot', () => {
+    const minPosition = { x: FRAME_PADDING, y: FRAME_PADDING };
+    // Occupies the clamped desired position itself, forcing the ring search
+    // to explore in every direction — including back toward the floor.
+    const occupied: PositionedRect = { position: minPosition, size: CARD_SIZE };
+    const found = findFreePosition({ x: 0, y: 0 }, CARD_SIZE, [occupied], minPosition);
+
+    expect(found.x).toBeGreaterThanOrEqual(minPosition.x);
+    expect(found.y).toBeGreaterThanOrEqual(minPosition.y);
+    expect(hasClearance({ position: found, size: CARD_SIZE }, [occupied])).toBe(true);
   });
 
   it('still finds a free spot among several tightly packed siblings', () => {
@@ -216,9 +232,7 @@ describe('findFreePosition (v0.3.1, ADR-0003)', () => {
     ];
     const found = findFreePosition({ x: 100, y: 100 }, CARD_SIZE, siblings);
 
-    for (const sibling of siblings) {
-      expect(rectsOverlap({ position: found, size: CARD_SIZE }, sibling)).toBe(false);
-    }
+    expect(hasClearance({ position: found, size: CARD_SIZE }, siblings)).toBe(true);
   });
 
   it('falls back to the desired position if nothing is free within the search bound', () => {
@@ -314,7 +328,48 @@ describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
     const siblings = siblingRectsFor({ roots: [frame] }, layout, renderKindOf, 'vpc', null);
     const found = findFreePosition({ x: 16, y: 16 }, CARD_SIZE, siblings);
 
-    expect(rectsOverlap({ position: found, size: CARD_SIZE }, siblings[0]!)).toBe(false);
+    expect(hasClearance({ position: found, size: CARD_SIZE }, siblings)).toBe(true);
+  });
+});
+
+describe('hasClearance (v0.3.4, ADR-0004)', () => {
+  it('is true with no siblings at all', () => {
+    expect(hasClearance({ position: { x: 0, y: 0 }, size: CARD_SIZE }, [])).toBe(true);
+  });
+
+  it('is false for rects that literally overlap', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    expect(hasClearance(a, [a])).toBe(false);
+  });
+
+  it('is false for rects that touch edge-to-edge with zero gap', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = { position: { x: CARD_SIZE.width, y: 0 }, size: CARD_SIZE };
+    // rectsOverlap alone would call this false (no literal overlap) — hasClearance
+    // must still reject it since there is zero gutter between them.
+    expect(rectsOverlap(a, b)).toBe(false);
+    expect(hasClearance(a, [b])).toBe(false);
+  });
+
+  it('is false when the gap is smaller than FRAME_PADDING', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = {
+      position: { x: CARD_SIZE.width + FRAME_PADDING / 2, y: 0 },
+      size: CARD_SIZE,
+    };
+    expect(hasClearance(a, [b])).toBe(false);
+  });
+
+  it('is true when the gap is exactly FRAME_PADDING', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = { position: { x: CARD_SIZE.width + FRAME_PADDING, y: 0 }, size: CARD_SIZE };
+    expect(hasClearance(a, [b])).toBe(true);
+  });
+
+  it('is true when the gap comfortably exceeds FRAME_PADDING', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = { position: { x: 1000, y: 1000 }, size: CARD_SIZE };
+    expect(hasClearance(a, [b])).toBe(true);
   });
 });
 
@@ -342,27 +397,5 @@ describe('computeDraggedItemSize (v0.3.2 drag overlay)', () => {
   it('falls back to CARD_SIZE for a node drag naming a Node absent from the tree', () => {
     const size = computeDraggedItemSize({ kind: 'node', nodeId: 'missing' }, { roots: [] }, {}, renderKindOf);
     expect(size).toEqual(CARD_SIZE);
-  });
-});
-
-describe('defaultPositionForKeyboardPlacement', () => {
-  it('starts at the padding offset for the first Node', () => {
-    expect(defaultPositionForKeyboardPlacement(0)).toEqual({ x: FRAME_PADDING, y: FRAME_PADDING });
-  });
-
-  it('cascades diagonally so successive placements are never pixel-identical', () => {
-    const first = defaultPositionForKeyboardPlacement(0);
-    const second = defaultPositionForKeyboardPlacement(1);
-    const third = defaultPositionForKeyboardPlacement(2);
-
-    expect(second.x).toBeGreaterThan(first.x);
-    expect(second.y).toBeGreaterThan(first.y);
-    expect(third.x).toBeGreaterThan(second.x);
-    expect(third.y).toBeGreaterThan(second.y);
-  });
-
-  it('offsets by a multiple of GRID_SNAP', () => {
-    const position = defaultPositionForKeyboardPlacement(3);
-    expect((position.x - FRAME_PADDING) % GRID_SNAP).toBe(0);
   });
 });

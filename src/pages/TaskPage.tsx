@@ -23,6 +23,7 @@ import { findNode } from '@/domain/canvas-tree';
 import type { Challenge } from '@/domain/types';
 import { DragPreviewContext, NO_DRAG_PREVIEW } from '@/state/drag-preview-context';
 import {
+  FRAME_PADDING,
   computeDraggedItemSize,
   computeDragPreviewSize,
   computeDropPosition,
@@ -129,6 +130,9 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
 
     // Dropping on the Canvas root means "no parent".
     const parentId = over.id === CANVAS_ROOT_ID ? null : String(over.id);
+    // A child must stay clear of a Frame's own border/badge — the Canvas
+    // root has neither, so it keeps the {0, 0} floor (v0.3.4 revision).
+    const minPosition: Layout = parentId === null ? { x: 0, y: 0 } : { x: FRAME_PADDING, y: FRAME_PADDING };
 
     // The drop point, in the target's local coordinates — the dragged
     // element's final on-screen rect minus the target droppable's own rect,
@@ -144,7 +148,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       // since it can't have children before it exists.
       const newNodeSize = computeDraggedItemSize({ kind: 'service', serviceId }, state.canvasTree, state.layout, renderKindOf);
       const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, null);
-      const position = findFreePosition(rawPosition, newNodeSize, siblings);
+      const position = findFreePosition(rawPosition, newNodeSize, siblings, minPosition);
 
       dispatch({ type: 'ADD_NODE', serviceId, parentId, position });
       return;
@@ -154,7 +158,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       const nodeId = String(dragged['nodeId']);
       const movedSize = computeDraggedItemSize({ kind: 'node', nodeId }, state.canvasTree, state.layout, renderKindOf);
       const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, nodeId);
-      const position = findFreePosition(rawPosition, movedSize, siblings);
+      const position = findFreePosition(rawPosition, movedSize, siblings, minPosition);
 
       // moveNode rejects a self-nesting move and returns the tree unchanged,
       // so no guard is needed here (research R-02).

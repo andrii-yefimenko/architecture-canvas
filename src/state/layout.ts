@@ -27,17 +27,26 @@ export interface Size {
   readonly height: number;
 }
 
-export const GRID_SNAP = 8;
-// A compact, fixed-size square (CONTEXT.md's Card definition) — 64 = 8 × GRID_SNAP.
+// A compact, fixed-size square (CONTEXT.md's Card definition).
 export const CARD_SIZE: Size = { width: 64, height: 64 };
-// 224 = 28 × GRID_SNAP (was 220, not grid-aligned).
 export const MIN_FRAME_SIZE: Size = { width: 224, height: 160 };
+// The canvas's one spacing constant: a Frame's inset from its own border to
+// its children, AND the minimum clearance required between sibling Nodes
+// (v0.3.4's gutter guarantee) — one number, two uses.
 export const FRAME_PADDING = 16;
 
-/** Rounds to the nearest GRID_SNAP increment — the only placement adjustment ever applied. */
+/**
+ * Rounds to the nearest FRAME_PADDING increment — the only placement
+ * adjustment ever applied. Deliberately decoupled from the gutter guarantee
+ * (`hasClearance`, below): this step is purely how fine the placement grid
+ * feels, not a promise about spacing between elements — a finer step here
+ * doesn't relax the gutter, and a coarser one wouldn't tighten it (v0.3.4
+ * revision — an earlier version conflated the two via a single `MODULE_STEP`
+ * derived from `CARD_SIZE`, which felt too rigid in practice).
+ */
 export function snapToGrid(value: number): number {
   // `+ 0` normalizes a `-0` result (e.g. snapToGrid(-3)) to plain `0`.
-  return Math.round(value / GRID_SNAP) * GRID_SNAP + 0;
+  return Math.round(value / FRAME_PADDING) * FRAME_PADDING + 0;
 }
 
 /**
@@ -136,51 +145,75 @@ export function rectsOverlap(a: PositionedRect, b: PositionedRect): boolean {
   );
 }
 
+/**
+ * Whether placing `candidate` keeps at least FRAME_PADDING of clear space
+ * from every rect in `siblingRects` — v0.3.4's gutter guarantee. A literal-
+ * overlap test (`rectsOverlap`) against `candidate` inflated by the gutter
+ * on all four sides.
+ */
+export function hasClearance(candidate: PositionedRect, siblingRects: readonly PositionedRect[]): boolean {
+  const inflated: PositionedRect = {
+    position: { x: candidate.position.x - FRAME_PADDING, y: candidate.position.y - FRAME_PADDING },
+    size: { width: candidate.size.width + FRAME_PADDING * 2, height: candidate.size.height + FRAME_PADDING * 2 },
+  };
+  return !siblingRects.some((sibling) => rectsOverlap(inflated, sibling));
+}
+
 const MAX_FREE_SEARCH_RINGS = 50;
 
 /** Every grid-aligned point on the square ring at `offset` around `center`, in perimeter order. */
 function* ringCandidates(center: Layout, offset: number): Generator<Layout> {
-  for (let x = center.x - offset; x <= center.x + offset; x += GRID_SNAP) {
+  for (let x = center.x - offset; x <= center.x + offset; x += FRAME_PADDING) {
     yield { x, y: center.y - offset };
     yield { x, y: center.y + offset };
   }
-  for (let y = center.y - offset + GRID_SNAP; y <= center.y + offset - GRID_SNAP; y += GRID_SNAP) {
+  for (let y = center.y - offset + FRAME_PADDING; y <= center.y + offset - FRAME_PADDING; y += FRAME_PADDING) {
     yield { x: center.x - offset, y };
     yield { x: center.x + offset, y };
   }
 }
 
 /**
- * If `desired` doesn't overlap any `siblingRects` entry, returns it
- * unchanged. Otherwise searches outward from `desired` in `GRID_SNAP`
- * increments (an expanding square ring) for the nearest non-overlapping,
- * grid-aligned position. Negative coordinates are never returned — a Node
- * can't be dropped above/left of the Canvas origin.
+ * If `desired` (clamped to `minPosition`) already keeps clearance from every
+ * `siblingRects` entry (`hasClearance`), returns it unchanged. Otherwise
+ * searches outward in `FRAME_PADDING` increments (an expanding square ring)
+ * for the nearest grid-aligned position that does. A candidate below
+ * `minPosition` on either axis is never returned — defaults to `{0, 0}` (a
+ * Node can't be dropped above/left of the Canvas origin); pass
+ * `{x: FRAME_PADDING, y: FRAME_PADDING}` when placing into a Frame so a
+ * child never lands flush against the Frame's own border/badge (v0.3.4
+ * revision).
  *
- * Direct drags only (v0.3.1) — a Frame's own auto-resize growing into a
- * sibling is unaffected; see docs/adr/0003-auto-snap-overlap-on-drop.md.
+ * Direct placement only (v0.3.1/ADR-0003, generalized in v0.3.4) — a Frame's
+ * own auto-resize growing into a sibling is unaffected; see
+ * docs/adr/0004-modular-placement-grid-and-gutters.md.
  *
- * If nothing is free within the search bound, returns `desired` unperturbed
- * rather than searching forever — accepting the overlap beats a stuck drag.
+ * If nothing is free within the search bound (50 rings × 16px), returns the
+ * clamped `desired` unperturbed rather than searching forever — accepting
+ * the closeness beats a stuck drag.
  */
 export function findFreePosition(
   desired: Layout,
   size: Size,
   siblingRects: readonly PositionedRect[],
+  minPosition: Layout = { x: 0, y: 0 },
 ): Layout {
-  const overlapsAny = (position: Layout) =>
-    siblingRects.some((sibling) => rectsOverlap({ position, size }, sibling));
+  const clampedDesired: Layout = {
+    x: Math.max(desired.x, minPosition.x),
+    y: Math.max(desired.y, minPosition.y),
+  };
+  const isClear = (position: Layout) => hasClearance({ position, size }, siblingRects);
 
-  if (!overlapsAny(desired)) return desired;
+  if (isClear(clampedDesired)) return clampedDesired;
 
   for (let ring = 1; ring <= MAX_FREE_SEARCH_RINGS; ring++) {
-    for (const candidate of ringCandidates(desired, ring * GRID_SNAP)) {
-      if (candidate.x < 0 || candidate.y < 0) continue;
-      if (!overlapsAny(candidate)) return candidate;
+    for (const candidate of ringCandidates(clampedDesired, ring * FRAME_PADDING)) {
+      if (candidate.x < minPosition.x || candidate.y < minPosition.y) continue;
+      if (isClear(candidate)) return candidate;
     }
   }
 
-  return desired;
+  return clampedDesired;
 }
 
 /**
@@ -260,14 +293,4 @@ export function computeDraggedItemSize(
   }
   const movedNode = findNode(tree, dragged.nodeId);
   return movedNode ? computeNodeSize(movedNode, layout, renderKindOf) : CARD_SIZE;
-}
-
-/**
- * The n-th (0-indexed) Node placed via keyboard into a given parent lands on
- * a deterministic diagonal cascade — never pixel-identical to the previous
- * one, with no collision check needed since overlap is already permitted.
- */
-export function defaultPositionForKeyboardPlacement(childCount: number): Layout {
-  const offset = childCount * (2 * GRID_SNAP);
-  return { x: FRAME_PADDING + offset, y: FRAME_PADDING + offset };
 }

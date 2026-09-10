@@ -23,14 +23,10 @@ import { findNode } from '@/domain/canvas-tree';
 import type { Challenge } from '@/domain/types';
 import { DragPreviewContext, NO_DRAG_PREVIEW } from '@/state/drag-preview-context';
 import {
-  FRAME_PADDING,
   computeDraggedItemSize,
   computeDragPreviewSize,
-  computeDropPosition,
   effectiveRenderKind,
-  findFreePosition,
-  siblingRectsFor,
-  type Layout,
+  resolveDropPosition,
 } from '@/state/layout';
 import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
@@ -80,7 +76,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     const dragged = active.data.current;
     const targetId = over && over.id !== CANVAS_ROOT_ID ? String(over.id) : null;
 
-    if (!dragged || !targetId || (dragged['kind'] === 'node' && String(dragged['nodeId']) === targetId)) {
+    if (!dragged || !over || !targetId || (dragged['kind'] === 'node' && String(dragged['nodeId']) === targetId)) {
       setDragPreview(NO_DRAG_PREVIEW);
       return;
     }
@@ -103,10 +99,21 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       return;
     }
 
-    // Same rect-math handleDragEnd uses for a real drop, but against the
-    // mid-drag rects — the projection tracks the pointer live.
+    // The exact same resolved-position pipeline handleDragEnd uses for a
+    // real drop (v0.3.5) — the mid-drag rects change live as the pointer
+    // moves, but the floor/gutter-search math is identical, so the preview
+    // always matches exactly where the item will actually land.
     const activeRect = active.rect.current.translated ?? active.rect.current.initial;
-    const projectedPosition: Layout = over ? computeDropPosition(activeRect ?? over.rect, over.rect) : { x: 0, y: 0 };
+    const projectedPosition = resolveDropPosition(
+      state.canvasTree,
+      state.layout,
+      renderKindOf,
+      activeRect ?? over.rect,
+      over.rect,
+      targetId,
+      draggedSize,
+      excludeNodeId,
+    );
 
     const previewSize = computeDragPreviewSize(
       targetNode,
@@ -130,16 +137,12 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
 
     // Dropping on the Canvas root means "no parent".
     const parentId = over.id === CANVAS_ROOT_ID ? null : String(over.id);
-    // A child must stay clear of a Frame's own border/badge — the Canvas
-    // root has neither, so it keeps the {0, 0} floor (v0.3.4 revision).
-    const minPosition: Layout = parentId === null ? { x: 0, y: 0 } : { x: FRAME_PADDING, y: FRAME_PADDING };
 
-    // The drop point, in the target's local coordinates — the dragged
-    // element's final on-screen rect minus the target droppable's own rect,
-    // both dnd-kit-measured in the same viewport-relative space
-    // (contracts/canvas-layout.md's drop-position formula).
-    const activeRect = active.rect.current.translated ?? active.rect.current.initial;
-    const rawPosition: Layout = activeRect ? computeDropPosition(activeRect, over.rect) : { x: 0, y: 0 };
+    // The dragged element's final on-screen rect — dnd-kit-measured in the
+    // same viewport-relative space as `over.rect` (contracts/canvas-layout.md's
+    // drop-position formula). `resolveDropPosition` turns this into the
+    // final, floor-clamped, gutter-searched position (v0.3.5).
+    const activeRect = active.rect.current.translated ?? active.rect.current.initial ?? over.rect;
 
     if (dragged['kind'] === 'service') {
       const serviceId = String(dragged['serviceId']);
@@ -147,8 +150,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       // fixed empty-state size (FR-004, FR-005) — never a Frame's auto-size,
       // since it can't have children before it exists.
       const newNodeSize = computeDraggedItemSize({ kind: 'service', serviceId }, state.canvasTree, state.layout, renderKindOf);
-      const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, null);
-      const position = findFreePosition(rawPosition, newNodeSize, siblings, minPosition);
+      const position = resolveDropPosition(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, newNodeSize, null);
 
       dispatch({ type: 'ADD_NODE', serviceId, parentId, position });
       return;
@@ -157,8 +159,7 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
     if (dragged['kind'] === 'node') {
       const nodeId = String(dragged['nodeId']);
       const movedSize = computeDraggedItemSize({ kind: 'node', nodeId }, state.canvasTree, state.layout, renderKindOf);
-      const siblings = siblingRectsFor(state.canvasTree, state.layout, renderKindOf, parentId, nodeId);
-      const position = findFreePosition(rawPosition, movedSize, siblings, minPosition);
+      const position = resolveDropPosition(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, movedSize, nodeId);
 
       // moveNode rejects a self-nesting move and returns the tree unchanged,
       // so no guard is needed here (research R-02).

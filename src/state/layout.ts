@@ -242,6 +242,30 @@ export function siblingRectsFor(
 }
 
 /**
+ * The position a drop at (`activeRect`, `overRect`) actually resolves to,
+ * once clamped to the right `minPosition` floor and checked for sibling
+ * clearance — the exact pipeline a real drop runs. Used by both the real
+ * drop (`handleDragEnd`) and the live ghost preview (`handleDragOver`,
+ * v0.3.5), so the two can never diverge: the preview always shows exactly
+ * where the item will land, floor and gutter-search included.
+ */
+export function resolveDropPosition(
+  tree: CanvasTree,
+  layout: LayoutMap,
+  renderKindOf: (serviceId: ServiceId) => RenderKind,
+  activeRect: { readonly left: number; readonly top: number },
+  overRect: { readonly left: number; readonly top: number },
+  parentId: NodeId | null,
+  size: Size,
+  excludeNodeId: NodeId | null,
+): Layout {
+  const minPosition: Layout = parentId === null ? { x: 0, y: 0 } : { x: FRAME_PADDING, y: FRAME_PADDING };
+  const raw = computeDropPosition(activeRect, overRect);
+  const siblings = siblingRectsFor(tree, layout, renderKindOf, parentId, excludeNodeId);
+  return findFreePosition(raw, size, siblings, minPosition);
+}
+
+/**
  * The Frame `targetNode` would become if `draggedSize` were dropped into it
  * at `draggedPosition`, alongside its current children — v0.3.1's ghost
  * preview (docs/adr/0003-auto-snap-overlap-on-drop.md's sibling decision).

@@ -13,6 +13,7 @@ import {
   findFreePosition,
   hasClearance,
   rectsOverlap,
+  resolveDropPosition,
   siblingRectsFor,
   snapToGrid,
   type PositionedRect,
@@ -329,6 +330,70 @@ describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
     const found = findFreePosition({ x: 16, y: 16 }, CARD_SIZE, siblings);
 
     expect(hasClearance({ position: found, size: CARD_SIZE }, siblings)).toBe(true);
+  });
+});
+
+describe('resolveDropPosition (v0.3.5)', () => {
+  it('is the raw, clamped position when dropping on the Canvas root with no siblings', () => {
+    const activeRect = { left: 130, top: 84 };
+    const overRect = { left: 100, top: 60 };
+
+    const position = resolveDropPosition({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
+
+    expect(position).toEqual(computeDropPosition(activeRect, overRect));
+  });
+
+  it('floors to {0, 0} on the Canvas root even if the raw position is negative', () => {
+    const activeRect = { left: 50, top: 50 };
+    const overRect = { left: 100, top: 100 };
+
+    const position = resolveDropPosition({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
+
+    expect(position.x).toBeGreaterThanOrEqual(0);
+    expect(position.y).toBeGreaterThanOrEqual(0);
+  });
+
+  it('floors to {FRAME_PADDING, FRAME_PADDING} when the parent is a real Frame', () => {
+    const frame = node('vpc', 'vpc');
+    const activeRect = { left: 100, top: 100 };
+    const overRect = { left: 100, top: 100 }; // raw position would be {0, 0}
+
+    const position = resolveDropPosition({ roots: [frame] }, {}, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
+
+    expect(position).toEqual({ x: FRAME_PADDING, y: FRAME_PADDING });
+  });
+
+  it('matches calling findFreePosition directly with the same inputs (the pipeline handleDragEnd relies on)', () => {
+    const existingCard = node('existing', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [existingCard]);
+    const layout = { existing: { x: 16, y: 16 } };
+    const activeRect = { left: 116, top: 116 };
+    const overRect = { left: 100, top: 100 }; // raw position would be {16, 16} — right on the existing Card
+
+    const resolved = resolveDropPosition({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
+
+    const siblings = siblingRectsFor({ roots: [frame] }, layout, renderKindOf, 'vpc', null);
+    const expected = findFreePosition(
+      computeDropPosition(activeRect, overRect),
+      CARD_SIZE,
+      siblings,
+      { x: FRAME_PADDING, y: FRAME_PADDING },
+    );
+
+    expect(resolved).toEqual(expected);
+    expect(resolved).not.toEqual({ x: 16, y: 16 }); // had to move, since that spot is occupied
+  });
+
+  it('excludes the dragged Node itself from the sibling check, e.g. a small in-place move', () => {
+    const dragged = node('self', 'ec2-frontend');
+    const frame = node('vpc', 'vpc', [dragged]);
+    const layout = { self: { x: 16, y: 16 } };
+    const activeRect = { left: 116, top: 116 };
+    const overRect = { left: 100, top: 100 }; // raw position {16, 16} — the dragged Node's own current spot
+
+    const position = resolveDropPosition({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, 'self');
+
+    expect(position).toEqual({ x: 16, y: 16 });
   });
 });
 

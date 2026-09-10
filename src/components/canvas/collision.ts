@@ -3,16 +3,26 @@ import { pointerWithin, rectIntersection, type CollisionDetection } from '@dnd-k
 /**
  * Collision detection for arbitrarily nested droppable containers.
  *
- * `pointerWithin` first, per dnd-kit's guidance for high-precision interfaces,
- * with `rectIntersection` as the fallback it recommends composing — a bare
- * pointerWithin returns nothing once the pointer leaves every rect, and the
- * keyboard sensor needs the fallback.
+ * `rectIntersection` first (v0.3.5): a Frame must register as a collision
+ * the moment the *dragged Node's own bounding box* touches it, not only once
+ * the pointer tip itself crosses the border. `pointerWithin`-first (the
+ * v0.3.0–v0.3.4 behavior) never actually achieved that: the Canvas root's
+ * droppable covers essentially the whole panel, so `pointerWithin` almost
+ * always found *something* (the root, if nothing more specific) the instant
+ * the pointer was anywhere inside the canvas — meaning the code's own
+ * fallback to `rectIntersection` essentially never ran, and a Card dragged
+ * by its center or right edge wouldn't register a Frame collision until the
+ * pointer itself physically entered the Frame, well after the Card's
+ * leading edge already had. `pointerWithin` now only matters as the
+ * fallback for the rare case `rectIntersection` finds nothing at all (e.g.
+ * a drag that has left every droppable's bounds).
  *
- * Nested Nodes produce overlapping droppables, so the pointer is legitimately
- * inside several at once. **Greatest tree depth wins**: a user dragging into a
- * Subnet that sits inside a VPC means the Subnet, never the VPC. dnd-kit's
- * default `closestCenter` gets this backwards — for a small Node inside a large
- * container, the parent's centre is often nearer.
+ * Nested Nodes produce overlapping droppables, so a dragged Node's rect can
+ * legitimately intersect several at once. **Greatest tree depth wins**: a
+ * user dragging into a Subnet that sits inside a VPC means the Subnet,
+ * never the VPC. dnd-kit's default `closestCenter` gets this backwards —
+ * for a small Node inside a large container, the parent's centre is often
+ * nearer.
  *
  * Depth is carried in each droppable's `data` (Canvas root is -1, so every real
  * Node outranks it). See research.md R-01.
@@ -32,8 +42,8 @@ export const deepestDroppableFirst: CollisionDetection = (args) => {
     droppableContainers: args.droppableContainers.filter((c) => c.id !== args.active.id),
   };
 
-  const pointerCollisions = pointerWithin(candidates);
-  const collisions = pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(candidates);
+  const rectCollisions = rectIntersection(candidates);
+  const collisions = rectCollisions.length > 0 ? rectCollisions : pointerWithin(candidates);
 
   const depthOf = (id: string | number): number => {
     const container = candidates.droppableContainers.find((c) => c.id === id);

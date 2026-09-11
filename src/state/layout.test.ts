@@ -13,6 +13,7 @@ import {
   effectiveRenderKind,
   findFreePosition,
   hasClearance,
+  hasSignificantOverlap,
   meetsNestingThreshold,
   rectsOverlap,
   resolveDropPlacement,
@@ -375,7 +376,59 @@ describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
   });
 });
 
-describe('computePushDisplacements (v0.3.6, ADR-0005)', () => {
+describe('hasSignificantOverlap (v0.3.7 revision)', () => {
+  it('is false with no geometric overlap at all, even inside the gutter zone', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    // 15px away — inside FRAME_PADDING's 16px gutter, but not touching.
+    const b: PositionedRect = { position: { x: CARD_SIZE.width + 15, y: 0 }, size: CARD_SIZE };
+    expect(rectsOverlap(a, b)).toBe(false);
+    expect(hasSignificantOverlap(a, b)).toBe(false);
+  });
+
+  it('is false for a negligible 1px real overlap', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = { position: { x: CARD_SIZE.width - 1, y: 0 }, size: CARD_SIZE };
+    expect(hasSignificantOverlap(a, b)).toBe(false);
+  });
+
+  it('is true once a full-height touch between two same-sized Cards reaches 25% of their area (a 16px-deep touch, incidentally)', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const b: PositionedRect = { position: { x: CARD_SIZE.width - 16, y: 0 }, size: CARD_SIZE };
+    expect(hasSignificantOverlap(a, b)).toBe(true);
+  });
+
+  it('is true for two fully-coincident rects', () => {
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    expect(hasSignificantOverlap(a, { ...a })).toBe(true);
+  });
+
+  it("is false for a shallow edge touch between two large Frame-sized rects — the exact reported regression (a fixed-pixel threshold treated a trivial touch on a 240px Frame the same as on a 64px Card)", () => {
+    const frameSize = { width: 240, height: 170 };
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: frameSize };
+    // 20px penetration on X, full height on Y — 20*170=3400, 3400/40800 ≈ 8.3%.
+    const b: PositionedRect = { position: { x: frameSize.width - 20, y: 0 }, size: frameSize };
+    expect(hasSignificantOverlap(a, b)).toBe(false);
+  });
+
+  it('is true for a substantial overlap between two large Frame-sized rects', () => {
+    const frameSize = { width: 240, height: 170 };
+    const a: PositionedRect = { position: { x: 0, y: 0 }, size: frameSize };
+    // 70px penetration on X, full height — 70*170=11900, 11900/40800 ≈ 29.2%.
+    const b: PositionedRect = { position: { x: frameSize.width - 70, y: 0 }, size: frameSize };
+    expect(hasSignificantOverlap(a, b)).toBe(true);
+  });
+
+  it('is true when a small Card is entirely engulfed by a much larger dragged Frame, even though that\'s a tiny fraction of the Frame\'s own area', () => {
+    const bigFrame: PositionedRect = { position: { x: 0, y: 0 }, size: { width: 500, height: 400 } };
+    const smallCard: PositionedRect = { position: { x: 100, y: 100 }, size: CARD_SIZE }; // fully inside bigFrame
+    // Overlap = the Card's entire area, only ~2% of the Frame's own area —
+    // the denominator uses the SMALLER of the two areas (the Card's), so
+    // this correctly registers as a complete (100%) overlap.
+    expect(hasSignificantOverlap(bigFrame, smallCard)).toBe(true);
+  });
+});
+
+describe('computePushDisplacements (v0.3.6/ADR-0005, sensitivity narrowed in v0.3.7)', () => {
   function sibling(id: string, x: number, y: number, size: { width: number; height: number } = CARD_SIZE): SiblingRect {
     return { id, position: { x, y }, size };
   }
@@ -384,6 +437,77 @@ describe('computePushDisplacements (v0.3.6, ADR-0005)', () => {
     const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
     const siblings = [sibling('a', 500, 500)];
     expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('returns {} for a gutter-only graze — no genuine geometric overlap at all', () => {
+    // Sibling sits 15px away — inside the FRAME_PADDING (16px) gutter zone,
+    // but the two rects never actually touch. Under v0.3.6/ADR-0005 this
+    // triggered a full push (hasClearance is gutter-aware); this revision tolerates it.
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', CARD_SIZE.width + 15, 0)];
+
+    expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('returns {} for a negligible 1px real overlap', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', CARD_SIZE.width - 1, 0)]; // 1px genuine overlap
+
+    expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('still returns {} for a small but real overlap below both the penetration and area thresholds', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    // 10px penetration on X (< 16px), full 64px on Y — area = 10*64 = 640,
+    // 640/4096 ≈ 15.6% (< 25%) — fails both checks.
+    const siblings = [sibling('a', CARD_SIZE.width - 10, 0)];
+
+    expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('triggers a push once a full-height touch between two same-sized Cards reaches 25% area', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', CARD_SIZE.width - 16, 0)]; // 16px penetration on X = 25% for a 64px Card
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']).toBeDefined();
+  });
+
+  it('does NOT push on a shallow edge touch between two Frame-sized siblings — the exact reported regression', () => {
+    const frameSize = { width: 240, height: 170 };
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: frameSize };
+    // 20px penetration, full height — ~8.3% of either Frame's area. A flat
+    // 16px-penetration rule would have fired here regardless of size;
+    // dragging a Frame slightly past a sibling Frame's edge must not.
+    const siblings = [sibling('a', frameSize.width - 20, 0, frameSize)];
+
+    expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('still pushes on a substantial overlap between two Frame-sized siblings', () => {
+    const frameSize = { width: 240, height: 170 };
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: frameSize };
+    const siblings = [sibling('a', frameSize.width - 70, 0, frameSize)]; // ~29.2% overlap
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']).toBeDefined();
+  });
+
+  it('triggers a push via the area threshold even when penetration alone falls short', () => {
+    // For a square 64x64 dragged rect, 16px penetration is exactly 25% of
+    // its own side — the two thresholds coincide, so isolating the area
+    // path needs a smaller dragged rect (32x32): 15px penetration on X
+    // (just under the 16px floor) with full 32px overlap on Y gives an area
+    // of 15*32=480, or 480/1024 ≈ 46.9% of the dragged rect's own area —
+    // comfortably over 25% despite the shallow, sub-threshold X penetration.
+    const smallDragged: PositionedRect = { position: { x: 0, y: 0 }, size: { width: 32, height: 32 } };
+    const siblings = [sibling('a', 32 - 15, 0, { width: 32, height: 32 })];
+
+    const result = computePushDisplacements(smallDragged, siblings);
+
+    expect(result['a']).toBeDefined();
   });
 
   it('pushes the single overlapping sibling right when X has the smaller penetration', () => {

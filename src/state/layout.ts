@@ -283,11 +283,49 @@ function overlapArea(a: PositionedRect, b: PositionedRect): number {
   return width * height;
 }
 
+// A push-worthy overlap (v0.3.7 revision) — a percentage, not an absolute
+// pixel count, specifically so it scales with the objects involved: 16px is
+// a quarter of a 64px Card but barely a twentieth of a 200px+ Frame. An
+// earlier version paired this with a flat 16px-penetration OR-branch, which
+// is exactly what let a Frame dragged slightly past a sibling Frame's edge
+// trigger the same full push as a direct hit — for large objects, 16px of
+// raw penetration is trivial. The ratio alone already scales correctly
+// (confirmed by hand: a 16px-deep, full-height touch between two 64px
+// Cards is exactly 25% of either one's area, but the same 16px touch
+// between two 240px Frames is under 9%), so the flat branch added nothing
+// but this bug and was removed rather than tuned.
+const MIN_PUSH_OVERLAP_RATIO = 0.25;
+
+/**
+ * Whether `a` and `b` overlap by enough to warrant pushing `b` aside — real
+ * geometric overlap area at least `MIN_PUSH_OVERLAP_RATIO` of the *smaller*
+ * of the two rects' own areas (not just `a`'s, the dragged one) — so a small
+ * Card fully engulfed by a much larger dragged Frame still registers as a
+ * complete, obvious overlap (100% of the Card's own area) rather than a
+ * negligible fraction of the Frame's. Deliberately checked against the
+ * *raw* rects, not `hasClearance`'s gutter-inflated ones — a drop that only
+ * grazes a sibling's gutter (no genuine overlap at all, or a negligible
+ * sliver of one) is tolerated rather than triggering a full push, which
+ * previously felt jarring for what was often a 1px graze, and
+ * scales down correctly for large Frames instead of firing on any 16px
+ * touch regardless of their size (this revision).
+ */
+export function hasSignificantOverlap(a: PositionedRect, b: PositionedRect): boolean {
+  if (!rectsOverlap(a, b)) return false;
+
+  const penetrationX = Math.min(a.position.x + a.size.width, b.position.x + b.size.width) - Math.max(a.position.x, b.position.x);
+  const penetrationY = Math.min(a.position.y + a.size.height, b.position.y + b.size.height) - Math.max(a.position.y, b.position.y);
+
+  const smallerArea = Math.min(a.size.width * a.size.height, b.size.width * b.size.height);
+  return smallerArea > 0 && (penetrationX * penetrationY) / smallerArea >= MIN_PUSH_OVERLAP_RATIO;
+}
+
 /**
  * Which existing siblings a drop at `droppedRect` pushes aside, and where
  * they land — v0.3.6, replacing `findFreePosition`'s "move the dragged item
  * instead" model for drag-and-drop. Only entries for siblings that actually
- * moved; a drop with no overlap returns `{}`.
+ * moved; a drop with no *significant* overlap (`hasSignificantOverlap`,
+ * v0.3.7 revision — a minor gutter graze is tolerated, not pushed) returns `{}`.
  *
  * Picks whichever overlapping sibling has the largest overlap area as the
  * primary target (rare case: the drop lands exactly on the seam between
@@ -295,18 +333,20 @@ function overlapArea(a: PositionedRect, b: PositionedRect): number {
  * that sibling (the shorter distance needed to separate them) — a tie
  * defaults to Y (push-down). Every pushed sibling — including cascaded ones
  * — lands with its leading edge at the mover's trailing edge plus
- * FRAME_PADDING, `snapToGrid`-aligned, cross-axis unchanged; a push that
- * newly overlaps a further sibling cascades the same way, along the same
- * axis, up to `MAX_PUSH_CASCADE_DEPTH` siblings deep (mirrors
- * `findFreePosition`'s `MAX_FREE_SEARCH_RINGS` precedent) — beyond that, the
- * last sibling in the chain simply keeps its old (now overlapping)
- * position rather than cascading forever.
+ * FRAME_PADDING, `snapToGrid`-aligned, cross-axis unchanged (this final
+ * position always has a full, clean gutter — only the *decision* to push at
+ * all is lenient, not the result); a push that newly overlaps a further
+ * sibling *significantly* cascades the same way, along the same axis, up to
+ * `MAX_PUSH_CASCADE_DEPTH` siblings deep (mirrors `findFreePosition`'s
+ * `MAX_FREE_SEARCH_RINGS` precedent) — beyond that, the last sibling in the
+ * chain simply keeps its old (now overlapping) position rather than
+ * cascading forever.
  */
 export function computePushDisplacements(
   droppedRect: PositionedRect,
   siblingRects: readonly SiblingRect[],
 ): Record<NodeId, Layout> {
-  const initialCollisions = siblingRects.filter((sibling) => !hasClearance(droppedRect, [sibling]));
+  const initialCollisions = siblingRects.filter((sibling) => hasSignificantOverlap(droppedRect, sibling));
   if (initialCollisions.length === 0) return {};
 
   const primary = initialCollisions.reduce((best, candidate) =>
@@ -339,7 +379,7 @@ export function computePushDisplacements(
     current.set(targetId, moved);
     mover = moved;
 
-    const next = siblingRects.find((s) => s.id !== targetId && !(s.id in updates) && !hasClearance(mover, [current.get(s.id)!]));
+    const next = siblingRects.find((s) => s.id !== targetId && !(s.id in updates) && hasSignificantOverlap(mover, current.get(s.id)!));
     targetId = next?.id;
   }
 

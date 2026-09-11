@@ -1,4 +1,5 @@
 import { pointerWithin, rectIntersection, type CollisionDetection } from '@dnd-kit/core';
+import { meetsNestingThreshold } from '@/state/layout';
 
 /**
  * Collision detection for arbitrarily nested droppable containers.
@@ -35,6 +36,17 @@ import { pointerWithin, rectIntersection, type CollisionDetection } from '@dnd-k
  * `over.id === active.id`, which `moveNode`'s cycle guard then rejects
  * outright — silently discarding the position update along with it. See
  * docs/adr/0003-auto-snap-overlap-on-drop.md's v0.3.1 polish context.
+ *
+ * A non-root candidate must also clear `meetsNestingThreshold` (v0.3.6): the
+ * dragged rect's center inside it, or at least half the dragged rect's own
+ * area overlapping it. Merely touching a Frame's edge (what `rectIntersection`
+ * alone tests) isn't real containment intent — a candidate that fails this
+ * is filtered out, so resolution falls through to whichever shallower
+ * candidate (eventually the Canvas root, always exempt) does qualify. This
+ * governs the live ghost preview too, since `handleDragOver` and
+ * `handleDragEnd` both resolve `over` through this same function — hover
+ * and the real drop can never disagree about which Frame is the target. See
+ * docs/adr/0005-directional-push-displacement.md.
  */
 export const deepestDroppableFirst: CollisionDetection = (args) => {
   const candidates = {
@@ -51,5 +63,15 @@ export const deepestDroppableFirst: CollisionDetection = (args) => {
     return typeof depth === 'number' ? depth : -1;
   };
 
-  return [...collisions].sort((a, b) => depthOf(b.id) - depthOf(a.id));
+  const qualifies = (id: string | number): boolean => {
+    if (depthOf(id) < 0) return true; // Canvas root: always a valid fallback, no threshold.
+    const targetRect = candidates.droppableContainers.find((c) => c.id === id)?.rect.current;
+    if (!targetRect || !args.collisionRect) return false;
+    return meetsNestingThreshold(args.collisionRect, targetRect);
+  };
+
+  const qualified = collisions.filter((c) => qualifies(c.id));
+  const resolved = qualified.length > 0 ? qualified : collisions;
+
+  return [...resolved].sort((a, b) => depthOf(b.id) - depthOf(a.id));
 };

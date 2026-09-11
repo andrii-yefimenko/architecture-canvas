@@ -26,7 +26,7 @@ import {
   computeDraggedItemSize,
   computeDragPreviewSize,
   effectiveRenderKind,
-  resolveDropPosition,
+  resolveDropPlacement,
 } from '@/state/layout';
 import type { SessionState } from '@/state/session-reducer';
 import { useSession } from '@/state/session-context';
@@ -99,12 +99,13 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       return;
     }
 
-    // The exact same resolved-position pipeline handleDragEnd uses for a
-    // real drop (v0.3.5) — the mid-drag rects change live as the pointer
-    // moves, but the floor/gutter-search math is identical, so the preview
-    // always matches exactly where the item will actually land.
+    // The exact same resolved-placement pipeline handleDragEnd uses for a
+    // real drop (v0.3.5, extended in v0.3.6 for push displacement) — the
+    // mid-drag rects change live as the pointer moves, but the floor/push
+    // math is identical, so the preview always matches exactly where the
+    // item — and anything it pushes — will actually land.
     const activeRect = active.rect.current.translated ?? active.rect.current.initial;
-    const projectedPosition = resolveDropPosition(
+    const { position: projectedPosition, displaced } = resolveDropPlacement(
       state.canvasTree,
       state.layout,
       renderKindOf,
@@ -115,9 +116,13 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       excludeNodeId,
     );
 
+    // Pushed siblings' projected positions feed the growth preview too —
+    // otherwise the ghost would under-project a Frame that needs to grow
+    // not just for the dropped item, but to also fit a pushed child at its
+    // new spot.
     const previewSize = computeDragPreviewSize(
       targetNode,
-      state.layout,
+      { ...state.layout, ...displaced },
       renderKindOf,
       projectedPosition,
       draggedSize,
@@ -140,8 +145,9 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
 
     // The dragged element's final on-screen rect — dnd-kit-measured in the
     // same viewport-relative space as `over.rect` (contracts/canvas-layout.md's
-    // drop-position formula). `resolveDropPosition` turns this into the
-    // final, floor-clamped, gutter-searched position (v0.3.5).
+    // drop-position formula). `resolveDropPlacement` turns this into the
+    // final, floor-clamped position (v0.3.5) plus any pushed siblings
+    // (v0.3.6) — the item lands exactly where dropped, siblings move aside.
     const activeRect = active.rect.current.translated ?? active.rect.current.initial ?? over.rect;
 
     if (dragged['kind'] === 'service') {
@@ -150,20 +156,20 @@ function Workspace({ navigate }: { readonly navigate: (path: string) => void }) 
       // fixed empty-state size (FR-004, FR-005) — never a Frame's auto-size,
       // since it can't have children before it exists.
       const newNodeSize = computeDraggedItemSize({ kind: 'service', serviceId }, state.canvasTree, state.layout, renderKindOf);
-      const position = resolveDropPosition(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, newNodeSize, null);
+      const { position, displaced } = resolveDropPlacement(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, newNodeSize, null);
 
-      dispatch({ type: 'ADD_NODE', serviceId, parentId, position });
+      dispatch({ type: 'ADD_NODE', serviceId, parentId, position, displacedPositions: displaced });
       return;
     }
 
     if (dragged['kind'] === 'node') {
       const nodeId = String(dragged['nodeId']);
       const movedSize = computeDraggedItemSize({ kind: 'node', nodeId }, state.canvasTree, state.layout, renderKindOf);
-      const position = resolveDropPosition(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, movedSize, nodeId);
+      const { position, displaced } = resolveDropPlacement(state.canvasTree, state.layout, renderKindOf, activeRect, over.rect, parentId, movedSize, nodeId);
 
       // moveNode rejects a self-nesting move and returns the tree unchanged,
       // so no guard is needed here (research R-02).
-      dispatch({ type: 'MOVE_NODE', nodeId, newParentId: parentId, position });
+      dispatch({ type: 'MOVE_NODE', nodeId, newParentId: parentId, position, displacedPositions: displaced });
     }
   };
 

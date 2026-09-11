@@ -53,6 +53,12 @@ Scoped out of [ADR-0003](adr/0003-auto-snap-overlap-on-drop.md)'s auto-snap deci
 
 **Manual/live re-preview during the auto-snap search itself.** The ghost outline preview (v0.3.1) shows a Frame's projected *growth*, not where an overlapping Card will actually auto-snap to — a user only sees the final resting position once they release. Previewing the snap target live, mid-drag, is a further refinement not built in this pass.
 
+## Deferred during the v0.3.6 Directional Push pass (2026-09-11)
+
+Scoped out of [ADR-0005](adr/0005-directional-push-displacement.md)'s push-displacement decision, kept for later.
+
+**Live preview of which sibling gets pushed, and to where.** The ghost outline (v0.3.1) correctly shows a Frame's projected growth accounting for a push (v0.3.6), but the specific sibling that would move doesn't visually shift until the actual drop — a user only sees which sibling moved, and to where, once they release. Same shape of gap as the auto-snap-era item above, just for the newer push mechanism.
+
 ## Already out of scope per `MVP.md`
 
 Restated here for one consolidated view of everything not in the MVP.

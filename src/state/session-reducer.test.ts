@@ -106,6 +106,36 @@ describe('ADD_NODE', () => {
     });
     expect(after.layout).toBe(before.layout);
   });
+
+  it('merges displacedPositions atomically alongside the new Node (v0.3.6, directional push)', () => {
+    const { state, vpcId, publicId } = seeded();
+    const frontendId = findNode(state.canvasTree, publicId)!.children[0]!.id;
+
+    const after = sessionReducer(state, {
+      type: 'ADD_NODE',
+      serviceId: 'ec2-backend',
+      parentId: publicId,
+      position: { x: 5, y: 5 },
+      displacedPositions: { [frontendId]: { x: 200, y: 5 } },
+    });
+
+    const newNodeId = findNode(after.canvasTree, publicId)!.children.find((c) => c.serviceId === 'ec2-backend')!.id;
+    expect(after.layout[newNodeId]).toEqual({ x: 5, y: 5 });
+    expect(after.layout[frontendId]).toEqual({ x: 200, y: 5 }); // pushed sibling, same dispatch
+    expect(after.layout[vpcId]).toEqual(state.layout[vpcId]); // unrelated Node untouched
+  });
+
+  it('is unaffected when displacedPositions is omitted', () => {
+    const before = initialSessionState();
+    const after = sessionReducer(before, {
+      type: 'ADD_NODE',
+      serviceId: 'vpc',
+      parentId: null,
+      position: { x: 1, y: 1 },
+    });
+    const nodeId = after.canvasTree.roots[0]!.id;
+    expect(after.layout).toEqual({ [nodeId]: { x: 1, y: 1 } });
+  });
 });
 
 describe('MOVE_NODE', () => {
@@ -159,6 +189,22 @@ describe('MOVE_NODE', () => {
       position: { x: 7, y: 7 },
     });
     expect(after.layout).toBe(state.layout);
+  });
+
+  it('merges displacedPositions atomically alongside the moved Node (v0.3.6, directional push)', () => {
+    const { state, vpcId, publicId, frontendId } = seeded();
+
+    const moved = sessionReducer(state, {
+      type: 'MOVE_NODE',
+      nodeId: publicId,
+      newParentId: null,
+      position: { x: 20, y: 20 },
+      displacedPositions: { [vpcId]: { x: 300, y: 20 } },
+    });
+
+    expect(moved.layout[publicId]).toEqual({ x: 20, y: 20 });
+    expect(moved.layout[vpcId]).toEqual({ x: 300, y: 20 }); // pushed aside, same dispatch
+    expect(moved.layout[frontendId]).toBe(state.layout[frontendId]); // untouched descendant
   });
 });
 

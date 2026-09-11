@@ -8,15 +8,18 @@ import {
   computeDragPreviewSize,
   computeDropPosition,
   computeNodeSize,
+  computePushDisplacements,
   computeRootContentSize,
   effectiveRenderKind,
   findFreePosition,
   hasClearance,
+  meetsNestingThreshold,
   rectsOverlap,
-  resolveDropPosition,
+  resolveDropPlacement,
   siblingRectsFor,
   snapToGrid,
   type PositionedRect,
+  type SiblingRect,
 } from './layout';
 
 const renderKindOf = (serviceId: string) => (serviceId === 'vpc' ? 'frame' : 'card');
@@ -82,6 +85,45 @@ describe('computeDropPosition', () => {
 
   it('is zero when the dragged element lands exactly at the target origin', () => {
     expect(computeDropPosition({ left: 50, top: 50 }, { left: 50, top: 50 })).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe('meetsNestingThreshold (v0.3.6)', () => {
+  function rect(left: number, top: number, width: number, height: number) {
+    return { left, top, right: left + width, bottom: top + height };
+  }
+
+  it('is true when the dragged rect is fully inside the target', () => {
+    const dragged = rect(110, 110, 64, 64);
+    const target = rect(100, 100, 300, 300);
+    expect(meetsNestingThreshold(dragged, target)).toBe(true);
+  });
+
+  it('is true when the center is inside even though well under half the area overlaps — the case the area check alone would miss', () => {
+    // A large dragged rect (300x300, area 90000) mostly hangs off the
+    // target's edges; only a 160x200 corner (32000, ~35.5%) overlaps, but
+    // its center at (210, 250) still falls just inside the target.
+    const dragged = rect(60, 100, 300, 300);
+    const target = rect(200, 0, 300, 300);
+    expect(meetsNestingThreshold(dragged, target)).toBe(true);
+  });
+
+  it('is true when overlap area is exactly 50% and the center sits right on the boundary', () => {
+    const dragged = rect(0, 0, 64, 64); // spans x:[0,64), y:[0,64)
+    const target = rect(32, 0, 300, 300); // overlap x:[32,64) = half the width, full height = 50% area
+    expect(meetsNestingThreshold(dragged, target)).toBe(true);
+  });
+
+  it('is false when neither the center is inside nor overlap reaches 50%', () => {
+    const dragged = rect(0, 0, 64, 64);
+    const target = rect(50, 50, 300, 300); // small corner overlap only, center well outside
+    expect(meetsNestingThreshold(dragged, target)).toBe(false);
+  });
+
+  it('is false with no overlap at all', () => {
+    const dragged = rect(0, 0, 64, 64);
+    const target = rect(500, 500, 300, 300);
+    expect(meetsNestingThreshold(dragged, target)).toBe(false);
   });
 });
 
@@ -333,21 +375,127 @@ describe('siblingRectsFor (v0.3.1, ADR-0003)', () => {
   });
 });
 
-describe('resolveDropPosition (v0.3.5)', () => {
-  it('is the raw, clamped position when dropping on the Canvas root with no siblings', () => {
+describe('computePushDisplacements (v0.3.6, ADR-0005)', () => {
+  function sibling(id: string, x: number, y: number, size: { width: number; height: number } = CARD_SIZE): SiblingRect {
+    return { id, position: { x, y }, size };
+  }
+
+  it('returns {} when the dropped rect has clearance from every sibling', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 500, 500)];
+    expect(computePushDisplacements(droppedRect, siblings)).toEqual({});
+  });
+
+  it('pushes the single overlapping sibling right when X has the smaller penetration', () => {
+    // Dropped rect spans x:[0,64), y:[0,64); sibling at (8,0) — deep Y overlap
+    // (full 64px) but shallow X overlap (56px < 64px), so X is the push axis.
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 8, 0)];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']).toEqual({ x: 0 + CARD_SIZE.width + FRAME_PADDING, y: 0 }); // y unchanged
+  });
+
+  it('pushes down when Y has the smaller penetration', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 0, 8)]; // shallow Y overlap, full X overlap
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']).toEqual({ x: 0, y: 0 + CARD_SIZE.height + FRAME_PADDING });
+  });
+
+  it('defaults to push-down on an exact penetration tie', () => {
+    // Dropped rect exactly coincides with the sibling — equal penetration on both axes.
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 0, 0)];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']!.x).toBe(0); // x unchanged
+    expect(result['a']!.y).toBeGreaterThan(0); // pushed down
+  });
+
+  it('grid-aligns the computed offset', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 8, 0)];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']!.x % FRAME_PADDING).toBe(0);
+  });
+
+  it('cascades: a push that newly overlaps a further sibling pushes that one too, along the same axis', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [
+      sibling('a', 8, 0), // pushed right by the drop
+      sibling('b', CARD_SIZE.width + FRAME_PADDING, 0), // sits exactly where 'a' would land — must cascade
+    ];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['a']).toBeDefined();
+    expect(result['b']).toBeDefined();
+    expect(result['a']!.y).toBe(0);
+    expect(result['b']!.y).toBe(0);
+    expect(result['b']!.x).toBeGreaterThan(result['a']!.x);
+    // Every final position keeps clearance from the dropped rect and from each other.
+    const finalA: SiblingRect = { id: 'a', position: result['a']!, size: CARD_SIZE };
+    const finalB: SiblingRect = { id: 'b', position: result['b']!, size: CARD_SIZE };
+    expect(hasClearance(droppedRect, [finalA, finalB])).toBe(true);
+    expect(hasClearance({ position: finalA.position, size: CARD_SIZE }, [finalB])).toBe(true);
+  });
+
+  it('leaves an unrelated, non-overlapping sibling untouched', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const siblings = [sibling('a', 8, 0), sibling('far', 2000, 2000)];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['far']).toBeUndefined();
+  });
+
+  it('picks the sibling with the largest overlap area as the primary target when the drop hits a seam between two', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    // 'small' barely clips the dropped rect's corner; 'big' overlaps it almost entirely.
+    const siblings = [sibling('small', 60, 60), sibling('big', 4, 4)];
+
+    const result = computePushDisplacements(droppedRect, siblings);
+
+    expect(result['big']).toBeDefined();
+  });
+
+  it('gives up gracefully at MAX_PUSH_CASCADE_DEPTH rather than cascading forever, matching findFreePosition-style degradation', () => {
+    const droppedRect: PositionedRect = { position: { x: 0, y: 0 }, size: CARD_SIZE };
+    const step = CARD_SIZE.width + FRAME_PADDING;
+    // A long unbroken chain of siblings, each exactly abutting the next —
+    // every push cascades into the next one, well past any reasonable cap.
+    const siblings = Array.from({ length: 60 }, (_, i) => sibling(`s${i}`, 8 + i * step, 0));
+
+    expect(() => computePushDisplacements(droppedRect, siblings)).not.toThrow();
+    const result = computePushDisplacements(droppedRect, siblings);
+    // Bounded: not every sibling in a 60-long chain gets an update.
+    expect(Object.keys(result).length).toBeLessThan(60);
+  });
+});
+
+describe('resolveDropPlacement (v0.3.5, superseded shape in v0.3.6)', () => {
+  it('is the raw, clamped position when dropping on the Canvas root with no siblings, nothing displaced', () => {
     const activeRect = { left: 130, top: 84 };
     const overRect = { left: 100, top: 60 };
 
-    const position = resolveDropPosition({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
+    const { position, displaced } = resolveDropPlacement({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
 
     expect(position).toEqual(computeDropPosition(activeRect, overRect));
+    expect(displaced).toEqual({});
   });
 
   it('floors to {0, 0} on the Canvas root even if the raw position is negative', () => {
     const activeRect = { left: 50, top: 50 };
     const overRect = { left: 100, top: 100 };
 
-    const position = resolveDropPosition({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
+    const { position } = resolveDropPlacement({ roots: [] }, {}, renderKindOf, activeRect, overRect, null, CARD_SIZE, null);
 
     expect(position.x).toBeGreaterThanOrEqual(0);
     expect(position.y).toBeGreaterThanOrEqual(0);
@@ -358,42 +506,36 @@ describe('resolveDropPosition (v0.3.5)', () => {
     const activeRect = { left: 100, top: 100 };
     const overRect = { left: 100, top: 100 }; // raw position would be {0, 0}
 
-    const position = resolveDropPosition({ roots: [frame] }, {}, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
+    const { position } = resolveDropPlacement({ roots: [frame] }, {}, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
 
     expect(position).toEqual({ x: FRAME_PADDING, y: FRAME_PADDING });
   });
 
-  it('matches calling findFreePosition directly with the same inputs (the pipeline handleDragEnd relies on)', () => {
+  it('lands exactly where dropped and pushes the occupying sibling aside instead (v0.3.6 — no more findFreePosition here)', () => {
     const existingCard = node('existing', 'ec2-frontend');
     const frame = node('vpc', 'vpc', [existingCard]);
     const layout = { existing: { x: 16, y: 16 } };
     const activeRect = { left: 116, top: 116 };
-    const overRect = { left: 100, top: 100 }; // raw position would be {16, 16} — right on the existing Card
+    const overRect = { left: 100, top: 100 }; // raw position {16, 16} — right on the existing Card
 
-    const resolved = resolveDropPosition({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
+    const { position, displaced } = resolveDropPlacement({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, null);
 
-    const siblings = siblingRectsFor({ roots: [frame] }, layout, renderKindOf, 'vpc', null);
-    const expected = findFreePosition(
-      computeDropPosition(activeRect, overRect),
-      CARD_SIZE,
-      siblings,
-      { x: FRAME_PADDING, y: FRAME_PADDING },
-    );
-
-    expect(resolved).toEqual(expected);
-    expect(resolved).not.toEqual({ x: 16, y: 16 }); // had to move, since that spot is occupied
+    expect(position).toEqual({ x: 16, y: 16 }); // dropped item lands exactly here now
+    expect(displaced['existing']).toBeDefined(); // the sibling moved instead
+    expect(hasClearance({ position, size: CARD_SIZE }, [{ position: displaced['existing']!, size: CARD_SIZE }])).toBe(true);
   });
 
-  it('excludes the dragged Node itself from the sibling check, e.g. a small in-place move', () => {
+  it('excludes the dragged Node itself from the sibling/push check, e.g. a small in-place move', () => {
     const dragged = node('self', 'ec2-frontend');
     const frame = node('vpc', 'vpc', [dragged]);
     const layout = { self: { x: 16, y: 16 } };
     const activeRect = { left: 116, top: 116 };
     const overRect = { left: 100, top: 100 }; // raw position {16, 16} — the dragged Node's own current spot
 
-    const position = resolveDropPosition({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, 'self');
+    const { position, displaced } = resolveDropPlacement({ roots: [frame] }, layout, renderKindOf, activeRect, overRect, 'vpc', CARD_SIZE, 'self');
 
     expect(position).toEqual({ x: 16, y: 16 });
+    expect(displaced).toEqual({});
   });
 });
 

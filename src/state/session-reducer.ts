@@ -26,8 +26,22 @@ export interface SessionState {
 }
 
 export type SessionAction =
-  | { type: 'ADD_NODE'; serviceId: ServiceId; parentId: NodeId | null; position: Layout }
-  | { type: 'MOVE_NODE'; nodeId: NodeId; newParentId: NodeId | null; position: Layout }
+  | {
+      type: 'ADD_NODE';
+      serviceId: ServiceId;
+      parentId: NodeId | null;
+      position: Layout;
+      /** Existing siblings a directional push (v0.3.6) moved aside. */
+      displacedPositions?: Readonly<Record<NodeId, Layout>>;
+    }
+  | {
+      type: 'MOVE_NODE';
+      nodeId: NodeId;
+      newParentId: NodeId | null;
+      position: Layout;
+      /** Existing siblings a directional push (v0.3.6) moved aside. */
+      displacedPositions?: Readonly<Record<NodeId, Layout>>;
+    }
   | { type: 'REQUEST_DELETE'; nodeId: NodeId }
   | { type: 'CANCEL_DELETE' }
   | { type: 'CONFIRM_DELETE' }
@@ -80,7 +94,11 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return {
         ...state,
         canvasTree: tree,
-        layout: { ...state.layout, [nodeId]: action.position },
+        // One atomic update: the new Node's own position, plus whichever
+        // existing siblings a directional push (v0.3.6) moved aside — same
+        // spread `RESTORE` already uses to write a whole map, just merged
+        // instead of replaced.
+        layout: { ...state.layout, [nodeId]: action.position, ...action.displacedPositions },
         ...markStale(state),
       };
     }
@@ -89,13 +107,13 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       const tree = moveNode(state.canvasTree, action.nodeId, action.newParentId);
       // moveNode returns the input tree when the move is rejected (cycle guard).
       if (tree === state.canvasTree) return state;
-      // Only the moved Node's own entry changes — every descendant keeps its
-      // existing parent-relative position, so a dragged Frame visually
-      // carries its contents for free (research.md).
+      // The moved Node's own entry, plus any pushed siblings (v0.3.6) —
+      // every descendant keeps its existing parent-relative position, so a
+      // dragged Frame visually carries its contents for free (research.md).
       return {
         ...state,
         canvasTree: tree,
-        layout: { ...state.layout, [action.nodeId]: action.position },
+        layout: { ...state.layout, [action.nodeId]: action.position, ...action.displacedPositions },
         ...markStale(state),
       };
     }

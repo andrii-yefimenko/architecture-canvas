@@ -86,6 +86,33 @@ export function computeDropPosition(
 }
 
 /**
+ * Whether `draggedRect` expresses real intent to nest inside `targetRect`
+ * (v0.3.6) — its center falls inside `targetRect`, OR at least half of
+ * `draggedRect`'s own area overlaps it. Half of the *dragged* item's area,
+ * deliberately — a small Card against a large Frame could otherwise never
+ * reach half of the Frame's own (much bigger) area. Duck-typed on dnd-kit's
+ * own `ClientRect` shape (`left/top/right/bottom`) so `collision.ts` can
+ * pass its rects through with no conversion, and this module keeps its
+ * existing zero-external-import profile.
+ */
+export function meetsNestingThreshold(
+  draggedRect: { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number },
+  targetRect: { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number },
+): boolean {
+  const centerX = (draggedRect.left + draggedRect.right) / 2;
+  const centerY = (draggedRect.top + draggedRect.bottom) / 2;
+  const centerInside =
+    centerX >= targetRect.left && centerX <= targetRect.right && centerY >= targetRect.top && centerY <= targetRect.bottom;
+  if (centerInside) return true;
+
+  const overlapWidth = Math.max(0, Math.min(draggedRect.right, targetRect.right) - Math.max(draggedRect.left, targetRect.left));
+  const overlapHeight = Math.max(0, Math.min(draggedRect.bottom, targetRect.bottom) - Math.max(draggedRect.top, targetRect.top));
+  const draggedArea = (draggedRect.right - draggedRect.left) * (draggedRect.bottom - draggedRect.top);
+
+  return draggedArea > 0 && (overlapWidth * overlapHeight) / draggedArea >= 0.5;
+}
+
+/**
  * A Node's on-canvas appearance: a Frame the moment it has at least one
  * child, regardless of its Service's default — its own `renderKind`
  * otherwise (FR-002).
@@ -133,6 +160,11 @@ export function computeRootContentSize(
 export interface PositionedRect {
   readonly position: Layout;
   readonly size: Size;
+}
+
+/** A `PositionedRect` attributed to the Node it belongs to (v0.3.6, push displacement). */
+export interface SiblingRect extends PositionedRect {
+  readonly id: NodeId;
 }
 
 /** Axis-aligned bounding-box overlap test. */
@@ -229,27 +261,107 @@ export function siblingRectsFor(
   renderKindOf: (serviceId: ServiceId) => RenderKind,
   parentId: NodeId | null,
   excludeNodeId: NodeId | null,
-): PositionedRect[] {
+): SiblingRect[] {
   const siblings: readonly Node[] =
     parentId === null ? tree.roots : (findNode(tree, parentId)?.children ?? []);
 
   return siblings
     .filter((sibling) => sibling.id !== excludeNodeId)
     .map((sibling) => ({
+      id: sibling.id,
       position: layout[sibling.id] ?? { x: 0, y: 0 },
       size: computeNodeSize(sibling, layout, renderKindOf),
     }));
 }
 
+const MAX_PUSH_CASCADE_DEPTH = 50;
+
+/** Overlap area between two rects, in the same `{position, size}` shape `hasClearance` uses. */
+function overlapArea(a: PositionedRect, b: PositionedRect): number {
+  const width = Math.max(0, Math.min(a.position.x + a.size.width, b.position.x + b.size.width) - Math.max(a.position.x, b.position.x));
+  const height = Math.max(0, Math.min(a.position.y + a.size.height, b.position.y + b.size.height) - Math.max(a.position.y, b.position.y));
+  return width * height;
+}
+
 /**
- * The position a drop at (`activeRect`, `overRect`) actually resolves to,
- * once clamped to the right `minPosition` floor and checked for sibling
- * clearance — the exact pipeline a real drop runs. Used by both the real
- * drop (`handleDragEnd`) and the live ghost preview (`handleDragOver`,
- * v0.3.5), so the two can never diverge: the preview always shows exactly
- * where the item will land, floor and gutter-search included.
+ * Which existing siblings a drop at `droppedRect` pushes aside, and where
+ * they land — v0.3.6, replacing `findFreePosition`'s "move the dragged item
+ * instead" model for drag-and-drop. Only entries for siblings that actually
+ * moved; a drop with no overlap returns `{}`.
+ *
+ * Picks whichever overlapping sibling has the largest overlap area as the
+ * primary target (rare case: the drop lands exactly on the seam between
+ * two). Push axis is whichever of X/Y has the *smaller* penetration against
+ * that sibling (the shorter distance needed to separate them) — a tie
+ * defaults to Y (push-down). Every pushed sibling — including cascaded ones
+ * — lands with its leading edge at the mover's trailing edge plus
+ * FRAME_PADDING, `snapToGrid`-aligned, cross-axis unchanged; a push that
+ * newly overlaps a further sibling cascades the same way, along the same
+ * axis, up to `MAX_PUSH_CASCADE_DEPTH` siblings deep (mirrors
+ * `findFreePosition`'s `MAX_FREE_SEARCH_RINGS` precedent) — beyond that, the
+ * last sibling in the chain simply keeps its old (now overlapping)
+ * position rather than cascading forever.
  */
-export function resolveDropPosition(
+export function computePushDisplacements(
+  droppedRect: PositionedRect,
+  siblingRects: readonly SiblingRect[],
+): Record<NodeId, Layout> {
+  const initialCollisions = siblingRects.filter((sibling) => !hasClearance(droppedRect, [sibling]));
+  if (initialCollisions.length === 0) return {};
+
+  const primary = initialCollisions.reduce((best, candidate) =>
+    overlapArea(droppedRect, candidate) > overlapArea(droppedRect, best) ? candidate : best,
+  );
+
+  const penetrationX =
+    Math.min(droppedRect.position.x + droppedRect.size.width, primary.position.x + primary.size.width) -
+    Math.max(droppedRect.position.x, primary.position.x);
+  const penetrationY =
+    Math.min(droppedRect.position.y + droppedRect.size.height, primary.position.y + primary.size.height) -
+    Math.max(droppedRect.position.y, primary.position.y);
+  const axis: 'x' | 'y' = penetrationX < penetrationY ? 'x' : 'y';
+
+  const updates: Record<NodeId, Layout> = {};
+  const current = new Map<NodeId, SiblingRect>(siblingRects.map((s) => [s.id, s]));
+
+  let mover: PositionedRect = droppedRect;
+  let targetId: NodeId | undefined = primary.id;
+
+  for (let depth = 0; depth < MAX_PUSH_CASCADE_DEPTH && targetId; depth++) {
+    const target = current.get(targetId)!;
+    const newPosition: Layout =
+      axis === 'x'
+        ? { x: snapToGrid(mover.position.x + mover.size.width + FRAME_PADDING), y: target.position.y }
+        : { x: target.position.x, y: snapToGrid(mover.position.y + mover.size.height + FRAME_PADDING) };
+
+    updates[targetId] = newPosition;
+    const moved: SiblingRect = { ...target, position: newPosition };
+    current.set(targetId, moved);
+    mover = moved;
+
+    const next = siblingRects.find((s) => s.id !== targetId && !(s.id in updates) && !hasClearance(mover, [current.get(s.id)!]));
+    targetId = next?.id;
+  }
+
+  return updates;
+}
+
+export interface DropPlacement {
+  readonly position: Layout;
+  readonly displaced: Record<NodeId, Layout>;
+}
+
+/**
+ * Where a drop at (`activeRect`, `overRect`) lands, and which existing
+ * siblings it pushes aside (v0.3.6) — the exact pipeline a real drop runs.
+ * Used by both the real drop (`handleDragEnd`) and the live ghost preview
+ * (`handleDragOver`), so the two can never diverge. Supersedes v0.3.5's
+ * `resolveDropPosition`: the dragged item's own position is no longer
+ * searched away from a collision (`findFreePosition`) — it lands exactly
+ * where dropped (clamped to `minPosition`), and `computePushDisplacements`
+ * moves whatever it would have overlapped instead.
+ */
+export function resolveDropPlacement(
   tree: CanvasTree,
   layout: LayoutMap,
   renderKindOf: (serviceId: ServiceId) => RenderKind,
@@ -258,11 +370,13 @@ export function resolveDropPosition(
   parentId: NodeId | null,
   size: Size,
   excludeNodeId: NodeId | null,
-): Layout {
+): DropPlacement {
   const minPosition: Layout = parentId === null ? { x: 0, y: 0 } : { x: FRAME_PADDING, y: FRAME_PADDING };
   const raw = computeDropPosition(activeRect, overRect);
+  const position: Layout = { x: Math.max(raw.x, minPosition.x), y: Math.max(raw.y, minPosition.y) };
   const siblings = siblingRectsFor(tree, layout, renderKindOf, parentId, excludeNodeId);
-  return findFreePosition(raw, size, siblings, minPosition);
+  const displaced = computePushDisplacements({ position, size }, siblings);
+  return { position, displaced };
 }
 
 /**

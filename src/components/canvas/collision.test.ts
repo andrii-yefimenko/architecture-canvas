@@ -129,7 +129,7 @@ describe('deepestDroppableFirst — dragged-bounds-first collision (v0.3.5)', ()
   });
 });
 
-describe('deepestDroppableFirst — nesting intent threshold (v0.3.6, ADR-0005)', () => {
+describe('deepestDroppableFirst — nesting intent threshold (v0.3.6, narrowed in v0.3.7)', () => {
   it('a Frame that clears the threshold (center inside) wins over the root', () => {
     const frame = container('vpc', rect(0, 0, 300), 0);
     const root = container('canvas-root', rect(-500, -500, 2000), -1);
@@ -142,27 +142,65 @@ describe('deepestDroppableFirst — nesting intent threshold (v0.3.6, ADR-0005)'
     expect(collisions[0]?.id).toBe('vpc');
   });
 
-  it("a Frame that merely touches the dragged rect's edge (below threshold) falls back to the root", () => {
+  it("an outermost Frame with no shallower non-root competitor wins even on a bare edge touch (v0.3.7 — the threshold no longer gates a Frame against the root)", () => {
     const frame = container('vpc', rect(100, 100, 300), 0);
     const root = container('canvas-root', rect(-500, -500, 2000), -1);
-    // Dragged rect only clips the Frame's corner: small overlap, center well outside.
+    // Dragged rect only clips the Frame's corner: small overlap, center well
+    // outside. Under v0.3.6 this fell back to the root — the exact
+    // regression this milestone fixes: a Frame's own margin is often
+    // narrower than a dragged Card, so almost any drop "in the margin"
+    // would fail a 50% test that was never meant to gate entry into the one
+    // Frame that already encloses everything else being touched.
     const collisionRect: ClientRect = { left: 50, top: 50, right: 114, bottom: 114, width: 64, height: 64 };
     const args = activeArgs('dragged', [root, frame], { x: 82, y: 82 }, collisionRect);
 
     const collisions = deepestDroppableFirst(args);
 
-    expect(collisions[0]?.id).toBe('canvas-root');
+    expect(collisions[0]?.id).toBe('vpc');
   });
 
-  it('a non-qualifying Subnet falls back to its qualifying parent VPC, not straight to the root', () => {
+  it('a non-qualifying Subnet falls back to its enclosing VPC even when the VPC itself is only barely touched (v0.3.7 regression case)', () => {
     const vpc = container('vpc', rect(0, 0, 400), 0);
-    // Subnet occupies a corner of the VPC; the dragged rect only clips the Subnet's edge.
+    // Subnet fills almost all of the VPC, leaving only a narrow margin —
+    // the exact "narrow Frame margin" scenario reported.
+    const subnet = container('subnet', rect(16, 16, 350), 1); // spans (16,16)-(366,366)
+    const root = container('canvas-root', rect(-500, -500, 2000), -1);
+    // Dragged rect (64x64) spans (370,370)-(434,434): in the narrow VPC
+    // margin beyond the Subnet's edge, barely inside the VPC's own bounds
+    // (which end at 400) and not touching the Subnet at all. Center
+    // (402,402) is just OUTSIDE the VPC too (>400) — this would have failed
+    // v0.3.6's threshold against the VPC itself.
+    const collisionRect: ClientRect = { left: 370, top: 370, right: 434, bottom: 434, width: 64, height: 64 };
+    const args = activeArgs('dragged', [root, vpc, subnet], { x: 402, y: 402 }, collisionRect);
+
+    const collisions = deepestDroppableFirst(args);
+
+    // Subnet isn't even touched (dragged rect starts at 370, subnet ends at 366) — not a candidate at all.
+    expect(collisions.find((c) => c.id === 'subnet')).toBeUndefined();
+    expect(collisions[0]?.id).toBe('vpc');
+  });
+
+  it('a genuinely-qualifying Subnet still wins over its enclosing VPC (the threshold still does its job between nested Frames)', () => {
+    const vpc = container('vpc', rect(0, 0, 400), 0);
+    const subnet = container('subnet', rect(0, 0, 200), 1);
+    const root = container('canvas-root', rect(-500, -500, 2000), -1);
+    // Dragged rect's center is well inside the Subnet.
+    const collisionRect: ClientRect = { left: 50, top: 50, right: 114, bottom: 114, width: 64, height: 64 };
+    const args = activeArgs('dragged', [root, vpc, subnet], { x: 82, y: 82 }, collisionRect);
+
+    const collisions = deepestDroppableFirst(args);
+
+    expect(collisions[0]?.id).toBe('subnet');
+  });
+
+  it('a non-qualifying Subnet falls back to its qualifying parent VPC when the VPC also independently qualifies', () => {
+    const vpc = container('vpc', rect(0, 0, 400), 0);
     const subnet = container('subnet', rect(300, 300, 100), 1); // spans (300,300)-(400,400)
     const root = container('canvas-root', rect(-500, -500, 2000), -1);
     // Dragged rect (64x64) spans (250,250)-(314,314), center at (282,282):
-    // outside the Subnet (which starts at 300), with only a 14x14 corner
-    // (196 / 4096 ≈ 4.8%) overlapping it — doesn't qualify. Its center is
-    // comfortably inside the much larger VPC, which does.
+    // outside the Subnet (which starts at 300), only a 14x14 corner overlaps
+    // it — doesn't qualify. Its center is comfortably inside the much
+    // larger VPC too, so this passes regardless of which rule applies.
     const collisionRect: ClientRect = { left: 250, top: 250, right: 314, bottom: 314, width: 64, height: 64 };
     const args = activeArgs('dragged', [root, vpc, subnet], { x: 282, y: 282 }, collisionRect);
 
@@ -171,7 +209,7 @@ describe('deepestDroppableFirst — nesting intent threshold (v0.3.6, ADR-0005)'
     expect(collisions[0]?.id).toBe('vpc');
   });
 
-  it('the Canvas root is always a valid fallback, exempt from the threshold', () => {
+  it('the Canvas root is the only candidate when nothing else is touched', () => {
     const root = container('canvas-root', rect(-500, -500, 2000), -1);
     const collisionRect: ClientRect = { left: 0, top: 0, right: 64, bottom: 64, width: 64, height: 64 };
     const args = activeArgs('dragged', [root], { x: 32, y: 32 }, collisionRect);

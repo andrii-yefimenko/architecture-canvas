@@ -37,16 +37,26 @@ import { meetsNestingThreshold } from '@/state/layout';
  * outright — silently discarding the position update along with it. See
  * docs/adr/0003-auto-snap-overlap-on-drop.md's v0.3.1 polish context.
  *
- * A non-root candidate must also clear `meetsNestingThreshold` (v0.3.6): the
- * dragged rect's center inside it, or at least half the dragged rect's own
- * area overlapping it. Merely touching a Frame's edge (what `rectIntersection`
- * alone tests) isn't real containment intent — a candidate that fails this
- * is filtered out, so resolution falls through to whichever shallower
- * candidate (eventually the Canvas root, always exempt) does qualify. This
+ * A candidate that has a shallower non-root candidate to fall back to must
+ * clear `meetsNestingThreshold` (v0.3.6, narrowed in v0.3.7) to win over it:
+ * the dragged rect's center inside it, or at least half the dragged rect's
+ * own area overlapping it. This only gatekeeps *deeper-vs-shallower* Frame
+ * pairs — e.g. stopping a Subnet from "swallowing" a drop that only reaches
+ * it because the Subnet happens to sit inside a much larger enclosing VPC
+ * the drop was really meant for. The **outermost** real candidate — the one
+ * with nothing but the Canvas root beneath it — needs no threshold at all,
+ * just the touch/overlap `rectIntersection`/`pointerWithin` already
+ * established above (v0.3.5's original rule). Requiring the threshold there
+ * too was v0.3.6's mistake: a Frame's own rendered box auto-sizes tightly
+ * around its children (FR-003), so its unoccupied margin is often far
+ * narrower than a dragged Card — nearly any drop "in the margin" straddled
+ * the Frame's edge and failed a 50% test that was never meant to gate entry
+ * into the Frame that already contains everything else being touched. This
  * governs the live ghost preview too, since `handleDragOver` and
  * `handleDragEnd` both resolve `over` through this same function — hover
  * and the real drop can never disagree about which Frame is the target. See
- * docs/adr/0005-directional-push-displacement.md.
+ * docs/adr/0005-directional-push-displacement.md and
+ * docs/adr/0006-nesting-threshold-only-gates-deeper-frames.md.
  */
 export const deepestDroppableFirst: CollisionDetection = (args) => {
   const candidates = {
@@ -63,15 +73,19 @@ export const deepestDroppableFirst: CollisionDetection = (args) => {
     return typeof depth === 'number' ? depth : -1;
   };
 
-  const qualifies = (id: string | number): boolean => {
-    if (depthOf(id) < 0) return true; // Canvas root: always a valid fallback, no threshold.
-    const targetRect = candidates.droppableContainers.find((c) => c.id === id)?.rect.current;
-    if (!targetRect || !args.collisionRect) return false;
-    return meetsNestingThreshold(args.collisionRect, targetRect);
-  };
+  const sorted = [...collisions].sort((a, b) => depthOf(b.id) - depthOf(a.id));
 
-  const qualified = collisions.filter((c) => qualifies(c.id));
-  const resolved = qualified.length > 0 ? qualified : collisions;
+  // Walk from deepest to shallowest, dropping a non-root candidate that
+  // fails the threshold against its own rect — but only while there's a
+  // shallower non-root candidate to fall back to. Once the front of the
+  // list is either the sole surviving non-root candidate or the Canvas
+  // root itself, stop: it wins unconditionally.
+  while (sorted.length > 1 && depthOf(sorted[0]!.id) >= 0 && depthOf(sorted[1]!.id) >= 0) {
+    const rect = candidates.droppableContainers.find((c) => c.id === sorted[0]!.id)?.rect.current;
+    const passes = rect && args.collisionRect && meetsNestingThreshold(args.collisionRect, rect);
+    if (passes) break;
+    sorted.shift();
+  }
 
-  return [...resolved].sort((a, b) => depthOf(b.id) - depthOf(a.id));
+  return sorted;
 };

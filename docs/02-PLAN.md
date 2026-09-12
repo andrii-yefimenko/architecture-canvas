@@ -1,7 +1,7 @@
 # Project Roadmap & Execution Plan
 
 **Current Version**: `v0.3.7`  
-**Target Milestone**: `v0.4.0` (Spatial Layout Engine Redesign) — scoped by [docs/rfc-spatial-layout-engine.md](rfc-spatial-layout-engine.md); needs a dedicated Brainstorm/Grill session on that RFC before `/speckit-specify`, per `docs/agents/plan.md`.  
+**Target Milestone**: `v0.4.0` (Spatial Layout Engine Redesign) — scoped and grill-tested in [docs/rfc-spatial-layout-engine.md](rfc-spatial-layout-engine.md) (§11 resolved design, §12 existing-doc impact map); ready for `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
 ---

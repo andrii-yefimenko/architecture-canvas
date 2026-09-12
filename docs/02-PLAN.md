@@ -1,7 +1,7 @@
 # Project Roadmap & Execution Plan
 
 **Current Version**: `v0.3.7`  
-**Target Milestone**: `v0.x.x` (Connectors & Explicit Relationships) — not yet scoped; needs its own Brainstorm/Grill session before `/speckit-specify`, per `docs/agents/plan.md`.  
+**Target Milestone**: `v0.4.0` (Spatial Layout Engine Redesign) — scoped by [docs/rfc-spatial-layout-engine.md](rfc-spatial-layout-engine.md); needs a dedicated Brainstorm/Grill session on that RFC before `/speckit-specify`, per `docs/agents/plan.md`.  
 **Methodology**: SpecKit-driven (Docs -> Brainstorm/Grill -> Spec -> Tasks -> Code)
 
 ---
@@ -112,6 +112,19 @@
 - Fix: new `hasSignificantOverlap` — real, non-gutter-inflated geometric overlap, with overlap area at least `MIN_PUSH_OVERLAP_RATIO` (25%) of the **smaller** of the two rects' own areas (not just the dragged one, so a small Card fully engulfed by a much larger dragged Frame still registers as a complete overlap). The flat absolute-pixel branch was removed entirely rather than tuned further — the percentage-of-area test already scales correctly with object size on its own (confirmed by hand: a 16px-deep, full-height touch between two 64px Cards is exactly 25% of either one's area, but the same 16px touch between two 240px Frames is under 9%).
 - The push's own *output* is unchanged — once triggered, a pushed sibling still lands with a full, clean `FRAME_PADDING` gutter. Only the decision to push at all got more lenient; the gutter guarantee (ADR-0004) is enforced by an active push or `findFreePosition`'s search, not re-checked continuously across a hand-assembled layout.
 - 406 passing tests (up from 390) — collision tests for the nesting fix, plus `hasSignificantOverlap`/`computePushDisplacements` tests covering tolerated grazes, the Frame-vs-Frame shallow-touch regression specifically, substantial Frame-vs-Frame overlaps still triggering, and the small-Card-engulfed-by-large-Frame asymmetry.
+
+**Baseline audit (post-v0.3.7).** Further hands-on testing pushed the push-sensitivity fix through four more rounds beyond the two above — recalibrating the significance threshold for Frame-vs-Frame pairs, making push direction omnidirectional and boundary-aware, and reconsidering how a tolerated (non-pushed) overlap should resolve. That iteration surfaced three categories of edge case the *existing* push/placement model cannot resolve by further calibration alone, because they're structural gaps rather than miscalibrated thresholds:
+- **Boundary flings** — a sibling already anchored flush against its parent Frame's own boundary can get pushed *away* from that boundary and flung past the dragged Node, rather than staying in place while the dragged Node yields instead.
+- **Graze gaps** — a drop that lands with zero or partial gutter against a sibling (short of a full geometric overlap) isn't reliably caught by the same test that decides whether to push, so a Node can rest with less than the required clearance.
+- **Expansion collisions** — a Frame auto-expanding to fit a new or repositioned child has no collision check against *its own* siblings at all; it can grow directly on top of an adjacent Frame with nothing detecting or resolving it.
+
+Six rounds of incremental, symptom-by-symptom patches (drafted as ADR-0007 revisions) kept resolving one case while exposing the next, without ever landing on a design that satisfies all three at once. That iteration was reverted out of the committed tree (preserved in `git stash`, message `"v0.3.7 rounds 1-6 push-displacement iteration (superseded by RFC-driven redesign)"`, for reference rather than deleted) rather than shipped as further patches. v0.3.7 is closed at the two rounds above — the committed, stable nesting-threshold and push-sensitivity baseline — and the three categories above are carried forward as the explicit motivation for a systemic redesign, written up in full in [docs/rfc-spatial-layout-engine.md](rfc-spatial-layout-engine.md): current-architecture inventory, all known failure modes, open design tensions, eight falsifiable invariants, and candidate directions — pending a dedicated brainstorm/grill session before any v0.4.0 implementation begins.
+
+### v0.4.0 - Spatial Layout Engine Redesign (Planned)
+**Goal**: Replace the collision/placement/push-displacement/auto-expansion logic in `src/state/layout.ts` and `src/components/canvas/collision.ts` with one coherent design that resolves the three structural gaps identified in v0.3.7's baseline audit (boundary flings, graze gaps, expansion collisions) — designed against explicit invariants up front, rather than discovered by further hands-on patching.
+- Full problem framing already written: [docs/rfc-spatial-layout-engine.md](rfc-spatial-layout-engine.md).
+- Next step: a dedicated brainstorm/grill session to stress-test the RFC's invariants and open design tensions against concrete scenarios, then `/speckit-specify` once a direction is chosen.
+- Not yet scoped, tasked, or started.
 
 ### v0.x.x - Connectors & Explicit Relationships (Future)
 - Directed connection lines (arrows between nodes, e.g. ALB -> ECS -> RDS).
